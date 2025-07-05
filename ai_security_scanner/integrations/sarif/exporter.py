@@ -70,7 +70,7 @@ class SARIFExporter:
             "driver": {
                 "name": "AI Security Scanner",
                 "version": "0.1.0",
-                "informationUri": "https://github.com/your-org/ai-security-scanner",
+                "informationUri": "https://github.com/isbkch/ai-security-scanner",
                 "semanticVersion": "0.1.0",
                 "organization": "AI Security Scanner Contributors",
                 "rules": self._create_rules()

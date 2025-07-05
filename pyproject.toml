@@ -7,12 +7,12 @@ name = "ai-security-scanner"
 version = "0.1.0"
 description = "AI-powered code security scanner with LLM-enhanced vulnerability detection"
 readme = "README.md"
-license = {text = "MIT"}
+license = { text = "MIT" }
 authors = [
-    {name = "AI Security Scanner Contributors", email = "dev@example.com"}
+    { name = "AI Security Scanner Contributors", email = "dev@example.com" },
 ]
 maintainers = [
-    {name = "AI Security Scanner Contributors", email = "dev@example.com"}
+    { name = "AI Security Scanner Contributors", email = "dev@example.com" },
 ]
 keywords = ["security", "code-analysis", "ai", "llm", "sast", "vulnerability"]
 classifiers = [
@@ -83,18 +83,14 @@ docs = [
     "myst-parser>=2.0.0",
     "sphinx-autodoc-typehints>=1.24.0",
 ]
-api = [
-    "fastapi>=0.104.0",
-    "uvicorn>=0.23.0",
-    "gunicorn>=21.0.0",
-]
+api = ["fastapi>=0.104.0", "uvicorn>=0.23.0", "gunicorn>=21.0.0"]
 
 [project.urls]
-Homepage = "https://github.com/your-org/ai-security-scanner"
+Homepage = "https://github.com/isbkch/ai-security-scanner"
 Documentation = "https://ai-security-scanner.readthedocs.io/"
-Repository = "https://github.com/your-org/ai-security-scanner"
-Issues = "https://github.com/your-org/ai-security-scanner/issues"
-Changelog = "https://github.com/your-org/ai-security-scanner/blob/main/CHANGELOG.md"
+Repository = "https://github.com/isbkch/ai-security-scanner"
+Issues = "https://github.com/isbkch/ai-security-scanner/issues"
+Changelog = "https://github.com/isbkch/ai-security-scanner/blob/main/CHANGELOG.md"
 
 [project.scripts]
 ai-security-scanner = "ai_security_scanner.cli.main:main"
@@ -172,12 +168,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = [
-    "--strict-markers",
-    "--disable-warnings",
-    "--tb=short",
-    "-ra",
-]
+addopts = ["--strict-markers", "--disable-warnings", "--tb=short", "-ra"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
@@ -192,13 +183,7 @@ filterwarnings = [
 
 [tool.coverage.run]
 source = ["ai_security_scanner"]
-omit = [
-    "*/tests/*",
-    "*/test_*",
-    "*/conftest.py",
-    "*/venv/*",
-    "*/migrations/*",
-]
+omit = ["*/tests/*", "*/test_*", "*/conftest.py", "*/venv/*", "*/migrations/*"]
 
 [tool.coverage.report]
 exclude_lines = [

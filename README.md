@@ -53,13 +53,13 @@ jobs:
 
 ### vs Traditional SAST Tools
 
-| Feature | Traditional SAST | AI Security Scanner |
-|---------|------------------|---------------------|
-| False Positives | High | Low (LLM verification) |
-| Context Understanding | Limited | Advanced (code embeddings) |
-| Vulnerability Explanation | Basic | Detailed AI-generated |
-| Custom Rule Creation | Complex | Natural language patterns |
-| Integration | Limited | DevSecOps pipeline ready |
+| Feature                   | Traditional SAST | AI Security Scanner        |
+| ------------------------- | ---------------- | -------------------------- |
+| False Positives           | High             | Low (LLM verification)     |
+| Context Understanding     | Limited          | Advanced (code embeddings) |
+| Vulnerability Explanation | Basic            | Detailed AI-generated      |
+| Custom Rule Creation      | Complex          | Natural language patterns  |
+| Integration               | Limited          | DevSecOps pipeline ready   |
 
 ### AI-Powered Advantages
 
@@ -119,7 +119,7 @@ github:
 ### Setup
 
 ```bash
-git clone https://github.com/your-org/ai-security-scanner.git
+git clone https://github.com/isbkch/ai-security-scanner.git
 cd ai-security-scanner
 pip install -e ".[dev]"
 ```
@@ -136,12 +136,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
 ## Performance Benchmarks
 
-| Metric | AI Scanner | Bandit | Semgrep | ESLint Security |
-|--------|------------|--------|---------|-----------------|
-| Accuracy | 94% | 87% | 89% | 82% |
-| False Positives | 6% | 23% | 18% | 28% |
-| Scan Time | 45s | 12s | 28s | 15s |
-| Context Understanding | ★★★★★ | ★★☆☆☆ | ★★★☆☆ | ★★☆☆☆ |
+| Metric                | AI Scanner | Bandit | Semgrep | ESLint Security |
+| --------------------- | ---------- | ------ | ------- | --------------- |
+| Accuracy              | 94%        | 87%    | 89%     | 82%             |
+| False Positives       | 6%         | 23%    | 18%     | 28%             |
+| Scan Time             | 45s        | 12s    | 28s     | 15s             |
+| Context Understanding | ★★★★★      | ★★☆☆☆  | ★★★☆☆   | ★★☆☆☆           |
 
 ## License
 
@@ -150,5 +150,5 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Support
 
 - [Documentation](https://ai-security-scanner.readthedocs.io/)
-- [GitHub Issues](https://github.com/your-org/ai-security-scanner/issues)
+- [GitHub Issues](https://github.com/isbkch/ai-security-scanner/issues)
 - [Security Policy](SECURITY.md)
