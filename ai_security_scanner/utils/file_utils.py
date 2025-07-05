@@ -3,8 +3,9 @@
 import fnmatch
 import logging
 import os
+import re
 from pathlib import Path
-from typing import List, Set
+from typing import List, Set, Pattern
 
 from ai_security_scanner.core.config import Config
 
@@ -23,6 +24,10 @@ class FileScanner:
         self.config = config
         self.include_patterns = config.scanner.include_patterns
         self.exclude_patterns = config.scanner.exclude_patterns
+        
+        # Pre-compile patterns for better performance
+        self._compiled_include_patterns = self._compile_patterns(self.include_patterns)
+        self._compiled_exclude_patterns = self._compile_patterns(self.exclude_patterns)
 
     def get_files_to_scan(self, directory_path: str) -> List[Path]:
         """Get list of files to scan in directory.
@@ -60,6 +65,25 @@ class FileScanner:
 
         logger.info(f"Found {len(files_to_scan)} files to scan")
         return files_to_scan
+    
+    def _compile_patterns(self, patterns: List[str]) -> List[Pattern[str]]:
+        """Compile glob patterns to regex for better performance.
+        
+        Args:
+            patterns: List of glob patterns
+            
+        Returns:
+            List of compiled regex patterns
+        """
+        compiled_patterns = []
+        for pattern in patterns:
+            try:
+                # Convert glob pattern to regex
+                regex_pattern = fnmatch.translate(pattern)
+                compiled_patterns.append(re.compile(regex_pattern, re.IGNORECASE))
+            except re.error as e:
+                logger.warning(f"Invalid pattern '{pattern}': {e}")
+        return compiled_patterns
 
     def _is_excluded_file(self, file_path: Path) -> bool:
         """Check if file should be excluded from scanning.
@@ -72,9 +96,9 @@ class FileScanner:
         """
         file_str = str(file_path)
 
-        # Check exclude patterns
-        for pattern in self.exclude_patterns:
-            if fnmatch.fnmatch(file_str, pattern):
+        # Check exclude patterns using compiled regex
+        for compiled_pattern in self._compiled_exclude_patterns:
+            if compiled_pattern.match(file_str):
                 return True
 
         # Check if file is too large
@@ -101,9 +125,9 @@ class FileScanner:
         """
         dir_str = str(dir_path)
 
-        # Check exclude patterns
-        for pattern in self.exclude_patterns:
-            if fnmatch.fnmatch(dir_str, pattern):
+        # Check exclude patterns using compiled regex
+        for compiled_pattern in self._compiled_exclude_patterns:
+            if compiled_pattern.match(dir_str):
                 return True
 
         # Exclude hidden directories (starting with .)
@@ -127,9 +151,9 @@ class FileScanner:
         if not self.include_patterns:
             return True
 
-        # Check include patterns
-        for pattern in self.include_patterns:
-            if fnmatch.fnmatch(file_str, pattern):
+        # Check include patterns using compiled regex
+        for compiled_pattern in self._compiled_include_patterns:
+            if compiled_pattern.match(file_str):
                 return True
 
         return False

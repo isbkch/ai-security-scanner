@@ -57,14 +57,14 @@ class LLMProvider(ABC):
         """
         pass
 
-    def _enforce_rate_limit(self) -> None:
+    async def _enforce_rate_limit(self) -> None:
         """Enforce rate limiting."""
         current_time = time.time()
         time_since_last_request = current_time - self.last_request_time
 
         if time_since_last_request < self.rate_limit_delay:
             sleep_time = self.rate_limit_delay - time_since_last_request
-            time.sleep(sleep_time)
+            await asyncio.sleep(sleep_time)
 
         self.last_request_time = time.time()
         self.request_count += 1
@@ -232,7 +232,7 @@ class OpenAIProvider(LLMProvider):
         Returns:
             Analysis result dictionary
         """
-        self._enforce_rate_limit()
+        await self._enforce_rate_limit()
 
         try:
             system_prompt = self._create_system_prompt()
@@ -275,7 +275,7 @@ class OpenAIProvider(LLMProvider):
         Returns:
             False positive analysis result
         """
-        self._enforce_rate_limit()
+        await self._enforce_rate_limit()
 
         try:
             system_prompt = self._create_system_prompt()
@@ -359,7 +359,7 @@ class AnthropicProvider(LLMProvider):
         Returns:
             Analysis result dictionary
         """
-        self._enforce_rate_limit()
+        await self._enforce_rate_limit()
 
         try:
             system_prompt = self._create_system_prompt()
@@ -399,7 +399,7 @@ class AnthropicProvider(LLMProvider):
         Returns:
             False positive analysis result
         """
-        self._enforce_rate_limit()
+        await self._enforce_rate_limit()
 
         try:
             system_prompt = self._create_system_prompt()

@@ -8,6 +8,9 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
+from threading import Lock
+
+import aiofiles
 
 from ai_security_scanner.core.config import Config
 from ai_security_scanner.core.models import (
@@ -48,6 +51,7 @@ class SecurityScanner:
             "vulnerabilities_found": 0,
             "scan_duration": 0.0,
         }
+        self.stats_lock = Lock()
 
     def _load_patterns(self) -> None:
         """Load vulnerability patterns based on configuration."""
@@ -217,7 +221,7 @@ class SecurityScanner:
             files_scanned=self.stats["files_scanned"],
             total_lines_scanned=self.stats["lines_scanned"],
             scanner_version="0.1.0",
-            configuration=self.config.__dict__,
+            configuration=self.config.to_dict_safe(),
             metrics=self.stats.copy(),
         )
 
@@ -247,6 +251,73 @@ class SecurityScanner:
 
         return self._scan_with_patterns(code, file_path, context)
 
+    async def _scan_file_async(self, file_path: str, semaphore: asyncio.Semaphore) -> List[VulnerabilityResult]:
+        """Asynchronously scan a single file for vulnerabilities.
+
+        Args:
+            file_path: Path to the file to scan
+            semaphore: Semaphore to limit concurrent operations
+
+        Returns:
+            List of vulnerability results
+        """
+        async with semaphore:
+            try:
+                file_path_obj = Path(file_path)
+
+                # Check if file exists and is readable
+                if not file_path_obj.exists() or not file_path_obj.is_file():
+                    logger.warning(f"File not found or not readable: {file_path}")
+                    return []
+
+                # Check file size
+                file_size = file_path_obj.stat().st_size
+                max_size = self.config.scanner.max_file_size_mb * 1024 * 1024
+                if file_size > max_size:
+                    logger.warning(f"File too large, skipping: {file_path} ({file_size} bytes)")
+                    return []
+
+                # Read file content asynchronously
+                try:
+                    async with aiofiles.open(file_path_obj, "r", encoding="utf-8") as f:
+                        content = await f.read()
+                except UnicodeDecodeError:
+                    logger.warning(f"Cannot decode file as UTF-8, skipping: {file_path}")
+                    return []
+
+                # Detect language
+                language = self.language_detector.detect_language(file_path)
+                if not language:
+                    logger.debug(f"Could not detect language for: {file_path}")
+                    return []
+
+                # Skip if language not supported
+                if language not in self.config.scanner.languages:
+                    logger.debug(
+                        f"Language {language} not in supported languages, skipping: {file_path}"
+                    )
+                    return []
+
+                # Create analysis context
+                context = AnalysisContext(
+                    language=language, file_type=file_path_obj.suffix, security_context={}
+                )
+
+                # Scan with patterns
+                vulnerabilities = self._scan_with_patterns(content, file_path, context)
+
+                # Update statistics (thread-safe)
+                with self.stats_lock:
+                    self.stats["files_scanned"] += 1
+                    self.stats["lines_scanned"] += len(content.split("\n"))
+                    self.stats["vulnerabilities_found"] += len(vulnerabilities)
+
+                return vulnerabilities
+
+            except Exception as e:
+                logger.error(f"Error scanning file {file_path}: {e}")
+                return []
+
     async def scan_directory_async(self, directory_path: str) -> ScanResult:
         """Asynchronously scan a directory for vulnerabilities.
 
@@ -256,9 +327,74 @@ class SecurityScanner:
         Returns:
             Complete scan result
         """
-        return await asyncio.get_event_loop().run_in_executor(
-            None, self.scan_directory, directory_path
+        start_time = time.time()
+        directory_path_obj = Path(directory_path)
+
+        if not directory_path_obj.exists() or not directory_path_obj.is_dir():
+            raise ValueError(f"Directory not found: {directory_path}")
+
+        # Reset statistics
+        self.stats = {
+            "files_scanned": 0,
+            "lines_scanned": 0,
+            "vulnerabilities_found": 0,
+            "scan_duration": 0.0,
+        }
+
+        # Get files to scan
+        files_to_scan = self.file_scanner.get_files_to_scan(directory_path)
+
+        # Limit number of files if configured
+        if self.config.scanner.max_files_per_scan > 0:
+            files_to_scan = files_to_scan[: self.config.scanner.max_files_per_scan]
+
+        logger.info(f"Scanning {len(files_to_scan)} files in {directory_path}")
+
+        # Scan files asynchronously
+        semaphore = asyncio.Semaphore(10)  # Limit concurrent file operations
+        tasks = []
+        
+        for file_path in files_to_scan:
+            task = asyncio.create_task(self._scan_file_async(str(file_path), semaphore))
+            tasks.append(task)
+
+        # Wait for all scans to complete
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Collect all vulnerabilities
+        all_vulnerabilities = []
+        for result in results:
+            if isinstance(result, list):
+                all_vulnerabilities.extend(result)
+            elif isinstance(result, Exception):
+                logger.error(f"Error scanning file: {result}")
+
+        # Calculate scan duration
+        scan_duration = time.time() - start_time
+        self.stats["scan_duration"] = scan_duration
+
+        # Create scan result
+        scan_result = ScanResult(
+            scan_id=str(uuid.uuid4()),
+            repository_url=None,
+            repository_name=directory_path_obj.name,
+            branch=None,
+            commit_hash=None,
+            scan_timestamp=datetime.now(),
+            vulnerabilities=all_vulnerabilities,
+            scan_duration=scan_duration,
+            files_scanned=self.stats["files_scanned"],
+            total_lines_scanned=self.stats["lines_scanned"],
+            scanner_version="0.1.0",
+            configuration=self.config.to_dict_safe(),
+            metrics=self.stats.copy(),
         )
+
+        logger.info(
+            f"Scan completed: {len(all_vulnerabilities)} vulnerabilities found in {scan_duration:.2f}s"
+        )
+
+        return scan_result
 
     def get_supported_languages(self) -> List[str]:
         """Get list of supported programming languages."""

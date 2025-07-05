@@ -108,8 +108,9 @@ class GitHubIntegration:
                         try:
                             file_path = Path(temp_dir) / first_vuln_file
                             if file_path.exists():
-                                with open(file_path, "r", encoding="utf-8") as f:
-                                    source_code = f.read()
+                                import aiofiles
+                                async with aiofiles.open(file_path, "r", encoding="utf-8") as f:
+                                    source_code = await f.read()
                         except Exception as e:
                             logger.warning(f"Could not read source file for AI analysis: {e}")
 
@@ -167,7 +168,24 @@ class GitHubIntegration:
             branch: Branch name
         """
         for content in contents:
-            file_path = Path(base_path) / content.path
+            # Sanitize path to prevent directory traversal
+            sanitized_path = self._sanitize_path(content.path)
+            if not sanitized_path:
+                logger.warning(f"Skipping potentially malicious path: {content.path}")
+                continue
+                
+            file_path = Path(base_path) / sanitized_path
+
+            # Ensure the resolved path is still within base_path (additional safety check)
+            try:
+                resolved_path = file_path.resolve()
+                base_path_resolved = Path(base_path).resolve()
+                if not str(resolved_path).startswith(str(base_path_resolved)):
+                    logger.warning(f"Path traversal attempt detected, skipping: {content.path}")
+                    continue
+            except Exception as e:
+                logger.warning(f"Error resolving path {content.path}: {e}")
+                continue
 
             if content.type == "dir":
                 # Create directory and download contents
@@ -364,6 +382,39 @@ class GitHubIntegration:
                 details.append("")
 
         return "\n".join(details)
+
+    def _sanitize_path(self, file_path: str) -> Optional[str]:
+        """Sanitize file path to prevent directory traversal attacks.
+        
+        Args:
+            file_path: Raw file path from repository
+            
+        Returns:
+            Sanitized file path or None if malicious
+        """
+        if not file_path:
+            return None
+            
+        # Normalize path separators
+        normalized_path = file_path.replace('\\', '/')
+        
+        # Split path into components
+        path_parts = normalized_path.split('/')
+        
+        # Check for malicious components
+        for part in path_parts:
+            if part in ('..', '.', '') or part.startswith('.'):
+                if part != '.git' and part != '.github':  # Allow some common hidden dirs
+                    return None
+                    
+        # Reconstruct safe path
+        safe_path = '/'.join(part for part in path_parts if part)
+        
+        # Additional checks
+        if '../' in safe_path or '/..' in safe_path or safe_path.startswith('./'):
+            return None
+            
+        return safe_path
 
     def get_repository_info(self, repo_name: str) -> Dict[str, Any]:
         """Get repository information.

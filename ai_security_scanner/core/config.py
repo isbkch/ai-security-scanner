@@ -145,8 +145,13 @@ class Config:
         """Get API key from environment variable."""
         return os.getenv(env_var)
 
-    def validate(self) -> None:
-        """Validate configuration."""
+    def validate(self, require_db: bool = False, require_github: bool = False) -> None:
+        """Validate configuration.
+        
+        Args:
+            require_db: Whether database configuration is required
+            require_github: Whether GitHub configuration is required
+        """
         errors = []
 
         # Validate LLM configuration
@@ -156,20 +161,80 @@ class Config:
                     f"LLM API key not found in environment variable: {self.llm.api_key_env}"
                 )
 
-        # Validate database configuration
-        if not self.get_api_key(self.database.password_env):
+        # Validate database configuration only if required
+        if require_db and not self.get_api_key(self.database.password_env):
             errors.append(
                 f"Database password not found in environment variable: {self.database.password_env}"
             )
 
-        # Validate GitHub configuration
-        if not self.get_api_key(self.github.token_env):
+        # Validate GitHub configuration only if required
+        if require_github and not self.get_api_key(self.github.token_env):
             errors.append(
                 f"GitHub token not found in environment variable: {self.github.token_env}"
             )
 
         if errors:
             raise ValueError(f"Configuration validation failed: {', '.join(errors)}")
+    
+    def to_dict_safe(self) -> Dict[str, Any]:
+        """Convert configuration to dictionary, excluding sensitive data.
+        
+        Returns:
+            Safe configuration dictionary
+        """
+        safe_config = {}
+        
+        # LLM config (excluding API key)
+        safe_config["llm"] = {
+            "provider": self.llm.provider,
+            "model": self.llm.model,
+            "temperature": self.llm.temperature,
+            "max_tokens": self.llm.max_tokens,
+            "timeout": self.llm.timeout,
+            "retry_attempts": self.llm.retry_attempts,
+            "rate_limit_requests_per_minute": self.llm.rate_limit_requests_per_minute,
+        }
+        
+        # Scanner config (all safe)
+        safe_config["scanner"] = {
+            "languages": self.scanner.languages,
+            "patterns": self.scanner.patterns,
+            "false_positive_reduction": self.scanner.false_positive_reduction,
+            "max_file_size_mb": self.scanner.max_file_size_mb,
+            "max_files_per_scan": self.scanner.max_files_per_scan,
+            "include_patterns": self.scanner.include_patterns,
+            "exclude_patterns": self.scanner.exclude_patterns,
+            "confidence_threshold": self.scanner.confidence_threshold,
+            "enable_ai_analysis": self.scanner.enable_ai_analysis,
+        }
+        
+        # Database config (excluding password)
+        safe_config["database"] = {
+            "host": self.database.host,
+            "port": self.database.port,
+            "database": self.database.database,
+            "username": self.database.username,
+            "ssl_mode": self.database.ssl_mode,
+            "pool_size": self.database.pool_size,
+            "max_overflow": self.database.max_overflow,
+            "pool_timeout": self.database.pool_timeout,
+        }
+        
+        # GitHub config (excluding token and webhook secret)
+        safe_config["github"] = {
+            "api_base_url": self.github.api_base_url,
+            "timeout": self.github.timeout,
+            "max_file_size": self.github.max_file_size,
+            "clone_depth": self.github.clone_depth,
+        }
+        
+        # General config
+        safe_config["debug"] = self.debug
+        safe_config["log_level"] = self.log_level
+        safe_config["output_format"] = self.output_format
+        safe_config["report_template"] = self.report_template
+        
+        return safe_config
 
 
 def load_config(config_path: Optional[str] = None) -> Config:

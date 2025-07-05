@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 
 class CodeBERTEmbedder:
     """CodeBERT-based code embeddings generator."""
+    
+    # Class-level model cache to share across instances
+    _model_cache = {}
+    _model_lock = None
 
     def __init__(self, config: Optional[Config] = None):
         """Initialize CodeBERT embedder.
@@ -26,34 +30,57 @@ class CodeBERTEmbedder:
         """
         self.config = config or Config.from_env()
         self.model_name = "microsoft/codebert-base"
-        self.tokenizer = None
-        self.model = None
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Cache for embeddings
         self.embedding_cache: Dict[str, CodeEmbedding] = {}
         self.cache_size_limit = 1000
 
-        # Initialize model
-        self._load_model()
+        # Initialize lock if not exists
+        if CodeBERTEmbedder._model_lock is None:
+            import threading
+            CodeBERTEmbedder._model_lock = threading.Lock()
 
-    def _load_model(self) -> None:
-        """Load CodeBERT model and tokenizer."""
-        try:
-            logger.info(f"Loading CodeBERT model: {self.model_name}")
+        # Initialize model (lazy loading with caching)
+        self.tokenizer = None
+        self.model = None
+        self._ensure_model_loaded()
 
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            self.model = AutoModel.from_pretrained(self.model_name)
+    def _ensure_model_loaded(self) -> None:
+        """Ensure model is loaded with caching for performance."""
+        cache_key = f"{self.model_name}:{self.device}"
+        
+        with CodeBERTEmbedder._model_lock:
+            # Check if model is already cached
+            if cache_key in CodeBERTEmbedder._model_cache:
+                cached_model = CodeBERTEmbedder._model_cache[cache_key]
+                self.tokenizer = cached_model["tokenizer"]
+                self.model = cached_model["model"]
+                logger.debug(f"Using cached CodeBERT model: {self.model_name}")
+                return
 
-            # Move model to device
-            self.model.to(self.device)
-            self.model.eval()
+            # Load model if not cached
+            try:
+                logger.info(f"Loading CodeBERT model: {self.model_name}")
 
-            logger.info(f"CodeBERT model loaded successfully on {self.device}")
+                self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+                self.model = AutoModel.from_pretrained(self.model_name)
 
-        except Exception as e:
-            logger.error(f"Error loading CodeBERT model: {e}")
-            raise
+                # Move model to device
+                self.model.to(self.device)
+                self.model.eval()
+
+                # Cache the loaded model
+                CodeBERTEmbedder._model_cache[cache_key] = {
+                    "tokenizer": self.tokenizer,
+                    "model": self.model
+                }
+
+                logger.info(f"CodeBERT model loaded successfully on {self.device}")
+
+            except Exception as e:
+                logger.error(f"Error loading CodeBERT model: {e}")
+                raise
 
     def generate_embedding(self, code: str, language: str = "python") -> CodeEmbedding:
         """Generate embedding for code snippet.
