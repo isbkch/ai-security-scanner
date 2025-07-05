@@ -12,6 +12,7 @@ from threading import Lock
 
 import aiofiles
 
+from ai_security_scanner import __version__
 from ai_security_scanner.core.config import Config
 from ai_security_scanner.core.models import (
     AnalysisContext,
@@ -220,7 +221,7 @@ class SecurityScanner:
             scan_duration=scan_duration,
             files_scanned=self.stats["files_scanned"],
             total_lines_scanned=self.stats["lines_scanned"],
-            scanner_version="0.1.0",
+            scanner_version=__version__,
             configuration=self.config.to_dict_safe(),
             metrics=self.stats.copy(),
         )
@@ -385,7 +386,7 @@ class SecurityScanner:
             scan_duration=scan_duration,
             files_scanned=self.stats["files_scanned"],
             total_lines_scanned=self.stats["lines_scanned"],
-            scanner_version="0.1.0",
+            scanner_version=__version__,
             configuration=self.config.to_dict_safe(),
             metrics=self.stats.copy(),
         )

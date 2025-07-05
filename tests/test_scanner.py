@@ -134,6 +134,49 @@ def safe_function(x, y):
         vulnerabilities = self.scanner.scan_file("nonexistent.py")
         assert len(vulnerabilities) == 0
 
+    def test_scan_result_version(self):
+        """Test that scan results include correct scanner version."""
+        from ai_security_scanner import __version__
+        
+        # Create a temporary directory with a simple file
+        import tempfile
+        import os
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a simple test file
+            test_file = os.path.join(tmpdir, "test.py")
+            with open(test_file, "w") as f:
+                f.write("print('hello world')")
+            
+            # Scan the directory
+            scan_result = self.scanner.scan_directory(tmpdir)
+            
+            # Check that the scanner_version is correctly set
+            assert scan_result.scanner_version == __version__
+            assert scan_result.scanner_version == "0.1.0"  # Current version
+
+    @pytest.mark.asyncio
+    async def test_scan_result_version_async(self):
+        """Test that async scan results include correct scanner version."""
+        from ai_security_scanner import __version__
+        
+        # Create a temporary directory with a simple file
+        import tempfile
+        import os
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a simple test file
+            test_file = os.path.join(tmpdir, "test.py")
+            with open(test_file, "w") as f:
+                f.write("print('hello world')")
+            
+            # Scan the directory asynchronously
+            scan_result = await self.scanner.scan_directory_async(tmpdir)
+            
+            # Check that the scanner_version is correctly set
+            assert scan_result.scanner_version == __version__
+            assert scan_result.scanner_version == "0.1.0"  # Current version
+
 
 if __name__ == "__main__":
     pytest.main([__file__])
