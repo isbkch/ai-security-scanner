@@ -265,13 +265,17 @@ class SecurityScanner:
             try:
                 file_path_obj = Path(file_path)
 
-                # Check if file exists and is readable
-                if not file_path_obj.exists() or not file_path_obj.is_file():
+                # Check if file exists and is readable (asynchronously)
+                file_exists = await asyncio.to_thread(file_path_obj.exists)
+                is_file = await asyncio.to_thread(file_path_obj.is_file)
+                
+                if not file_exists or not is_file:
                     logger.warning(f"File not found or not readable: {file_path}")
                     return []
 
-                # Check file size
-                file_size = file_path_obj.stat().st_size
+                # Check file size (asynchronously)
+                file_stat = await asyncio.to_thread(file_path_obj.stat)
+                file_size = file_stat.st_size
                 max_size = self.config.scanner.max_file_size_mb * 1024 * 1024
                 if file_size > max_size:
                     logger.warning(f"File too large, skipping: {file_path} ({file_size} bytes)")
@@ -330,7 +334,11 @@ class SecurityScanner:
         start_time = time.time()
         directory_path_obj = Path(directory_path)
 
-        if not directory_path_obj.exists() or not directory_path_obj.is_dir():
+        # Check directory exists and is directory (asynchronously)
+        dir_exists = await asyncio.to_thread(directory_path_obj.exists)
+        is_dir = await asyncio.to_thread(directory_path_obj.is_dir)
+        
+        if not dir_exists or not is_dir:
             raise ValueError(f"Directory not found: {directory_path}")
 
         # Reset statistics
@@ -350,20 +358,17 @@ class SecurityScanner:
 
         logger.info(f"Scanning {len(files_to_scan)} files in {directory_path}")
 
-        # Scan files asynchronously
-        semaphore = asyncio.Semaphore(10)  # Limit concurrent file operations
-        tasks = []
-        
-        for file_path in files_to_scan:
-            task = asyncio.create_task(self._scan_file_async(str(file_path), semaphore))
-            tasks.append(task)
+        # For better performance with many small files, use thread pool approach
+        # when there are many files, otherwise use the async I/O approach
+        if len(files_to_scan) > 20:
+            # Use thread pool for better performance with many files
+            vulnerabilities = await self._scan_files_with_thread_pool(files_to_scan)
+        else:
+            # Use async I/O for better resource utilization with fewer files
+            vulnerabilities = await self._scan_files_async(files_to_scan)
 
-        # Wait for all scans to complete
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Collect all vulnerabilities
         all_vulnerabilities = []
-        for result in results:
+        for result in vulnerabilities:
             if isinstance(result, list):
                 all_vulnerabilities.extend(result)
             elif isinstance(result, Exception):
@@ -395,6 +400,96 @@ class SecurityScanner:
         )
 
         return scan_result
+
+    async def _scan_files_async(self, files_to_scan) -> List:
+        """Scan files using async I/O approach."""
+        semaphore = asyncio.Semaphore(10)  # Limit concurrent file operations
+        tasks = []
+        
+        for file_path in files_to_scan:
+            task = asyncio.create_task(self._scan_file_async(str(file_path), semaphore))
+            tasks.append(task)
+
+        # Wait for all scans to complete
+        return await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def _scan_files_with_thread_pool(self, files_to_scan) -> List:
+        """Scan files using thread pool approach for better performance with many files."""
+        import concurrent.futures
+        
+        # Use a reasonable number of threads
+        max_workers = min(32, len(files_to_scan))
+        
+        # Create thread pool executor
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all file scan tasks to thread pool
+            futures = [
+                asyncio.get_event_loop().run_in_executor(
+                    executor, self._scan_file_sync, str(file_path)
+                )
+                for file_path in files_to_scan
+            ]
+            
+            # Wait for all tasks to complete
+            return await asyncio.gather(*futures, return_exceptions=True)
+
+    def _scan_file_sync(self, file_path: str) -> List[VulnerabilityResult]:
+        """Synchronously scan a single file for vulnerabilities (for use in thread pool)."""
+        try:
+            file_path_obj = Path(file_path)
+
+            # Check if file exists and is readable
+            if not file_path_obj.exists() or not file_path_obj.is_file():
+                logger.warning(f"File not found or not readable: {file_path}")
+                return []
+
+            # Check file size
+            file_size = file_path_obj.stat().st_size
+            max_size = self.config.scanner.max_file_size_mb * 1024 * 1024
+            if file_size > max_size:
+                logger.warning(f"File too large, skipping: {file_path} ({file_size} bytes)")
+                return []
+
+            # Read file content
+            try:
+                with open(file_path_obj, "r", encoding="utf-8") as f:
+                    content = f.read()
+            except UnicodeDecodeError:
+                logger.warning(f"Cannot decode file as UTF-8, skipping: {file_path}")
+                return []
+
+            # Detect language
+            language = self.language_detector.detect_language(file_path)
+            if not language:
+                logger.debug(f"Could not detect language for: {file_path}")
+                return []
+
+            # Skip if language not supported
+            if language not in self.config.scanner.languages:
+                logger.debug(
+                    f"Language {language} not in supported languages, skipping: {file_path}"
+                )
+                return []
+
+            # Create analysis context
+            context = AnalysisContext(
+                language=language, file_type=file_path_obj.suffix, security_context={}
+            )
+
+            # Scan with patterns
+            vulnerabilities = self._scan_with_patterns(content, file_path, context)
+
+            # Update statistics (thread-safe)
+            with self.stats_lock:
+                self.stats["files_scanned"] += 1
+                self.stats["lines_scanned"] += len(content.split("\n"))
+                self.stats["vulnerabilities_found"] += len(vulnerabilities)
+
+            return vulnerabilities
+
+        except Exception as e:
+            logger.error(f"Error scanning file {file_path}: {e}")
+            return []
 
     def get_supported_languages(self) -> List[str]:
         """Get list of supported programming languages."""
