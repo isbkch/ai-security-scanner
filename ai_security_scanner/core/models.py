@@ -3,12 +3,14 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
+
 from dataclasses_json import dataclass_json
 
 
 class Severity(Enum):
     """Vulnerability severity levels."""
+
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
@@ -17,6 +19,7 @@ class Severity(Enum):
 
 class Confidence(Enum):
     """Confidence levels for vulnerability detection."""
+
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
@@ -26,6 +29,7 @@ class Confidence(Enum):
 @dataclass
 class Location:
     """Source code location information."""
+
     file_path: str
     line_number: int
     column_number: int = 0
@@ -37,6 +41,7 @@ class Location:
 @dataclass
 class VulnerabilityResult:
     """Result of a vulnerability scan."""
+
     id: str
     vulnerability_type: str
     title: str
@@ -58,6 +63,7 @@ class VulnerabilityResult:
 @dataclass
 class ScanResult:
     """Complete scan result for a repository or file."""
+
     scan_id: str
     repository_url: Optional[str]
     repository_name: Optional[str]
@@ -77,6 +83,7 @@ class ScanResult:
 @dataclass
 class PatternMatch:
     """A pattern match found during scanning."""
+
     pattern_id: str
     pattern_name: str
     location: Location
@@ -90,6 +97,7 @@ class PatternMatch:
 @dataclass
 class CodeEmbedding:
     """Code embedding representation."""
+
     code_hash: str
     embedding: List[float]
     model_name: str
@@ -101,6 +109,7 @@ class CodeEmbedding:
 @dataclass
 class AnalysisContext:
     """Context for code analysis."""
+
     language: str
     framework: Optional[str] = None
     libraries: List[str] = field(default_factory=list)

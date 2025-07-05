@@ -9,13 +9,13 @@ __author__ = "AI Security Scanner Contributors"
 __email__ = "dev@example.com"
 __license__ = "MIT"
 
-from ai_security_scanner.core.scanner import SecurityScanner
-from ai_security_scanner.core.models import VulnerabilityResult, ScanResult
 from ai_security_scanner.core.config import Config
+from ai_security_scanner.core.models import ScanResult, VulnerabilityResult
+from ai_security_scanner.core.scanner import SecurityScanner
 
 __all__ = [
     "SecurityScanner",
-    "VulnerabilityResult", 
+    "VulnerabilityResult",
     "ScanResult",
     "Config",
 ]

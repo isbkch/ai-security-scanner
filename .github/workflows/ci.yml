@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 env:
   PYTHON_VERSION: "3.11"
@@ -13,121 +13,121 @@ jobs:
   test:
     name: Test Suite
     runs-on: ubuntu-latest
-    
+
     strategy:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Cache dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements-dev.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements-dev.txt
-        pip install -e .
-    
-    - name: Run linting
-      run: |
-        black --check ai_security_scanner/
-        isort --check-only ai_security_scanner/
-        flake8 ai_security_scanner/
-    
-    - name: Run type checking
-      run: |
-        mypy ai_security_scanner/
-    
-    - name: Run security checks
-      run: |
-        bandit -r ai_security_scanner/ -f json -o bandit-report.json || true
-        safety check --json --output safety-report.json || true
-    
-    - name: Run tests
-      run: |
-        pytest tests/ --cov=ai_security_scanner --cov-report=xml --cov-report=html
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements-dev.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -e .
+
+      - name: Run linting
+        run: |
+          black --check ai_security_scanner/
+          isort --check-only ai_security_scanner/
+          flake8 ai_security_scanner/
+
+      - name: Run type checking
+        run: |
+          mypy ai_security_scanner/
+
+      - name: Run security checks
+        run: |
+          bandit -r ai_security_scanner/ -f json -o bandit-report.json || true
+          safety check --json --output safety-report.json || true
+
+      - name: Run tests
+        run: |
+          pytest tests/ --cov=ai_security_scanner --cov-report=xml --cov-report=html
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
 
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
     needs: test
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Run AI Security Scanner (self-scan)
-      uses: ./
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        path: ./ai_security_scanner
-        output-format: sarif
-        output-file: security-results.sarif
-        enable-ai-analysis: false  # Disable AI for CI to avoid API costs
-        fail-on-findings: false    # Don't fail CI on findings for now
-    
-    - name: Upload SARIF results
-      uses: github/codeql-action/upload-sarif@v2
-      if: always()
-      with:
-        sarif_file: security-results.sarif
+      - uses: actions/checkout@v4
+
+      - name: Run AI Security Scanner (self-scan)
+        uses: ./
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: ./ai_security_scanner
+          output-format: sarif
+          output-file: security-results.sarif
+          enable-ai-analysis: false # Disable AI for CI to avoid API costs
+          fail-on-findings: false # Don't fail CI on findings for now
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: security-results.sarif
 
   build:
     name: Build and Package
     runs-on: ubuntu-latest
     needs: test
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-    
-    - name: Install build dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build twine
-    
-    - name: Build package
-      run: |
-        python -m build
-    
-    - name: Check package
-      run: |
-        twine check dist/*
-    
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: python-package
-        path: dist/
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package
+        run: |
+          python -m build
+
+      - name: Check package
+        run: |
+          twine check dist/*
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-package
+          path: dist/
 
   integration-test:
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: build
-    
+
     services:
       postgres:
         image: postgres:13
@@ -141,111 +141,111 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-    
-    - name: Download build artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: python-package
-        path: dist/
-    
-    - name: Install package
-      run: |
-        pip install dist/*.whl
-    
-    - name: Test CLI functionality
-      run: |
-        ai-security-scanner --help
-        ai-security-scanner config-info
-        ai-security-scanner scan examples/ --output json --no-ai
-    
-    - name: Test vulnerable code detection
-      run: |
-        ai-security-scanner scan examples/vulnerable_code.py --output json --no-ai | jq '.vulnerabilities | length'
-        ai-security-scanner scan examples/vulnerable_code.js --output json --no-ai | jq '.vulnerabilities | length'
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: python-package
+          path: dist/
+
+      - name: Install package
+        run: |
+          pip install dist/*.whl
+
+      - name: Test CLI functionality
+        run: |
+          ai-security-scanner --help
+          ai-security-scanner config-info
+          ai-security-scanner scan examples/ --output json --no-ai
+
+      - name: Test vulnerable code detection
+        run: |
+          ai-security-scanner scan examples/vulnerable_code.py --output json --no-ai | jq '.vulnerabilities | length'
+          ai-security-scanner scan examples/vulnerable_code.js --output json --no-ai | jq '.vulnerabilities | length'
 
   release:
     name: Release
     runs-on: ubuntu-latest
     needs: [test, security-scan, build, integration-test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
+
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-    
-    - name: Download build artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: python-package
-        path: dist/
-    
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: dist/*
-        generate_release_notes: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
-    - name: Publish to PyPI
-      if: startsWith(github.ref, 'refs/tags/')
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-      run: |
-        pip install twine
-        twine upload dist/*
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: python-package
+          path: dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: dist/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to PyPI
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          pip install twine
+          twine upload dist/*
 
   docker:
     name: Build Docker Image
     runs-on: ubuntu-latest
     needs: test
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-    
-    - name: Log in to Docker Hub
-      if: github.event_name != 'pull_request'
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-    
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ai-security-scanner/scanner
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-    
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .github/actions/security-scan/
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ai-security-scanner/scanner
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .github/actions/security-scan/
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
