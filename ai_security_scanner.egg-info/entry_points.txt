@@ -1,2 +1,0 @@
-[console_scripts]
-ai-security-scanner = ai_security_scanner.cli.main:main

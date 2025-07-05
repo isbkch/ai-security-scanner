@@ -180,7 +180,7 @@ async def _run_scan(
                 files_scanned=1,
                 total_lines_scanned=0,
                 scanner_version="0.1.0",
-                configuration=config.to_dict(),
+                configuration=config.to_dict_safe(),
                 metrics={},
             )
 
