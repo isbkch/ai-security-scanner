@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from ai_security_scanner.core.config import Config
 from ai_security_scanner.core.llm.providers import LLMProvider, create_llm_provider
 from ai_security_scanner.core.models import Confidence, Severity, VulnerabilityResult
-from ai_security_scanner.models.embeddings import CodeBERTEmbedder
+from ai_security_scanner.models.embeddings.codebert import CodeBERTEmbedder
 
 logger = logging.getLogger(__name__)
 

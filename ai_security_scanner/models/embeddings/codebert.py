@@ -204,17 +204,27 @@ class CodeBERTEmbedder:
         return hashlib.sha256(code.encode("utf-8")).hexdigest()
 
     def _cache_embedding(self, code_hash: str, embedding: CodeEmbedding) -> None:
-        """Cache embedding with size limit.
+        """Cache embedding with LRU-like size management.
 
         Args:
             code_hash: Hash of the code
             embedding: Code embedding to cache
         """
-        # Remove oldest entries if cache is full
+        # Implement LRU-like behavior when cache is full
         if len(self.embedding_cache) >= self.cache_size_limit:
-            # Remove first entry (oldest)
-            oldest_key = next(iter(self.embedding_cache))
-            del self.embedding_cache[oldest_key]
+            # Remove oldest entries based on creation time
+            sorted_items = sorted(
+                self.embedding_cache.items(),
+                key=lambda x: x[1].created_at
+            )
+            
+            # Remove oldest 20% of entries to avoid frequent cleanup
+            num_to_remove = max(1, len(sorted_items) // 5)
+            for i in range(num_to_remove):
+                oldest_key = sorted_items[i][0]
+                del self.embedding_cache[oldest_key]
+            
+            logger.debug(f"Cache cleanup: removed {num_to_remove} oldest embeddings")
 
         self.embedding_cache[code_hash] = embedding
 
@@ -248,7 +258,7 @@ class CodeBERTEmbedder:
         language: str = "python",
         threshold: float = 0.8,
     ) -> List[Tuple[str, float]]:
-        """Find similar code snippets.
+        """Find similar code snippets using optimized batch processing.
 
         Args:
             target_code: Code to find similarities for
@@ -257,45 +267,135 @@ class CodeBERTEmbedder:
             threshold: Similarity threshold
 
         Returns:
-            List of (code, similarity_score) tuples
+            List of (code, similarity_score) tuples sorted by similarity
         """
-        target_embedding = self.generate_embedding(target_code, language)
-        similar_codes = []
+        if not code_snippets:
+            return []
+            
+        try:
+            # Generate target embedding once
+            target_embedding = self.generate_embedding(target_code, language)
+            target_vector = np.array(target_embedding.embedding)
+            
+            # Batch process snippets for better performance
+            batch_size = 50  # Process in batches to manage memory
+            similar_codes = []
+            
+            for i in range(0, len(code_snippets), batch_size):
+                batch = code_snippets[i:i + batch_size]
+                batch_embeddings = []
+                
+                # Generate embeddings for batch
+                for snippet in batch:
+                    try:
+                        embedding = self.generate_embedding(snippet, language)
+                        batch_embeddings.append((snippet, np.array(embedding.embedding)))
+                    except Exception as e:
+                        logger.debug(f"Failed to generate embedding for snippet: {e}")
+                        continue
+                
+                # Calculate similarities for batch
+                for snippet, snippet_vector in batch_embeddings:
+                    try:
+                        similarity_score = self._cosine_similarity_vectors(target_vector, snippet_vector)
+                        
+                        if similarity_score >= threshold:
+                            similar_codes.append((snippet, similarity_score))
+                    except Exception as e:
+                        logger.debug(f"Failed to calculate similarity: {e}")
+                        continue
+            
+            # Sort by similarity score (descending) and limit results
+            similar_codes.sort(key=lambda x: x[1], reverse=True)
+            
+            # Limit to top 20 results to prevent excessive memory usage
+            return similar_codes[:20]
+            
+        except Exception as e:
+            logger.error(f"Error in find_similar_code: {e}")
+            return []
 
-        for snippet in code_snippets:
-            snippet_embedding = self.generate_embedding(snippet, language)
-            similarity_score = self.similarity(target_embedding, snippet_embedding)
+    def _cosine_similarity_vectors(self, vec1: np.ndarray, vec2: np.ndarray) -> float:
+        """Calculate cosine similarity between two vectors efficiently.
+        
+        Args:
+            vec1: First vector
+            vec2: Second vector
+            
+        Returns:
+            Cosine similarity score
+        """
+        try:
+            # Handle zero vectors
+            norm1 = np.linalg.norm(vec1)
+            norm2 = np.linalg.norm(vec2)
+            
+            if norm1 == 0.0 or norm2 == 0.0:
+                return 0.0
+            
+            return np.dot(vec1, vec2) / (norm1 * norm2)
+        except Exception:
+            return 0.0
 
-            if similarity_score >= threshold:
-                similar_codes.append((snippet, similarity_score))
-
-        # Sort by similarity score (descending)
-        similar_codes.sort(key=lambda x: x[1], reverse=True)
-
-        return similar_codes
-
-    def analyze_code_patterns(self, code: str, language: str = "python") -> Dict[str, float]:
-        """Analyze code patterns using embeddings.
+    def analyze_code_patterns(self, code: str, language: str = "python") -> Dict[str, Any]:
+        """Analyze code patterns using embeddings and pattern recognition.
 
         Args:
             code: Source code to analyze
             language: Programming language
 
         Returns:
-            Dictionary with pattern analysis results
+            Dictionary with comprehensive pattern analysis results
         """
-        embedding = self.generate_embedding(code, language)
-
-        # This would typically use trained classifiers on top of embeddings
-        # For now, return basic analysis
-        analysis = {
-            "complexity_score": self._estimate_complexity(code),
-            "security_risk_score": self._estimate_security_risk(code),
-            "maintainability_score": self._estimate_maintainability(code),
-            "embedding_magnitude": np.linalg.norm(embedding.embedding),
-        }
-
-        return analysis
+        try:
+            # Generate embedding for semantic analysis
+            embedding = self.generate_embedding(code, language)
+            embedding_vector = np.array(embedding.embedding)
+            
+            # Basic structural analysis
+            structural_analysis = {
+                "complexity_score": self._estimate_complexity(code),
+                "security_risk_score": self._estimate_security_risk(code),
+                "maintainability_score": self._estimate_maintainability(code),
+                "code_quality_score": self._estimate_code_quality(code),
+            }
+            
+            # Embedding-based analysis
+            semantic_analysis = {
+                "embedding_magnitude": float(np.linalg.norm(embedding_vector)),
+                "embedding_entropy": self._calculate_embedding_entropy(embedding_vector),
+                "semantic_complexity": self._calculate_semantic_complexity(embedding_vector),
+                "pattern_diversity": self._calculate_pattern_diversity(embedding_vector),
+            }
+            
+            # Code structure patterns
+            structure_patterns = self._analyze_code_structure(code, language)
+            
+            # Security-specific patterns
+            security_patterns = self._analyze_security_patterns(code, language, embedding_vector)
+            
+            # Combine all analyses
+            analysis = {
+                **structural_analysis,
+                **semantic_analysis,
+                "structure_patterns": structure_patterns,
+                "security_patterns": security_patterns,
+                "overall_risk_score": self._calculate_overall_risk(
+                    structural_analysis, semantic_analysis, security_patterns
+                ),
+                "analysis_metadata": {
+                    "model_used": self.model_name,
+                    "embedding_dimensions": len(embedding_vector),
+                    "code_length": len(code),
+                    "language": language,
+                }
+            }
+            
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"Error in analyze_code_patterns: {e}")
+            return {"error": str(e), "analysis_failed": True}
 
     def _estimate_complexity(self, code: str) -> float:
         """Estimate code complexity (basic implementation).
@@ -409,10 +509,385 @@ class CodeBERTEmbedder:
         # Calculate ratio
         return good_count / len(non_empty_lines)
 
+    def _estimate_code_quality(self, code: str) -> float:
+        """Estimate code quality based on multiple factors.
+        
+        Args:
+            code: Source code
+            
+        Returns:
+            Code quality score (0-1)
+        """
+        lines = code.split("\n")
+        non_empty_lines = [line for line in lines if line.strip()]
+        
+        if len(non_empty_lines) == 0:
+            return 1.0
+        
+        quality_score = 0.0
+        
+        # Check for documentation
+        doc_lines = [line for line in lines if '"""' in line or "'''" in line or line.strip().startswith('#')]
+        doc_ratio = len(doc_lines) / len(non_empty_lines)
+        quality_score += min(doc_ratio * 2, 0.3)  # Up to 30% for documentation
+        
+        # Check for proper naming (basic heuristic)
+        proper_naming = sum(1 for line in non_empty_lines 
+                          if any(pattern in line.lower() for pattern in ['def ', 'class ', 'import ']))
+        naming_ratio = proper_naming / len(non_empty_lines)
+        quality_score += min(naming_ratio * 3, 0.2)  # Up to 20% for structure
+        
+        # Check for error handling
+        error_handling = sum(1 for line in non_empty_lines 
+                           if any(pattern in line.lower() for pattern in ['try:', 'except', 'finally:', 'raise']))
+        error_ratio = error_handling / len(non_empty_lines)
+        quality_score += min(error_ratio * 5, 0.2)  # Up to 20% for error handling
+        
+        # Penalize very long lines
+        long_lines = sum(1 for line in non_empty_lines if len(line) > 120)
+        long_line_penalty = (long_lines / len(non_empty_lines)) * 0.2
+        quality_score -= long_line_penalty
+        
+        # Base quality for having any code
+        quality_score += 0.3
+        
+        return max(0.0, min(1.0, quality_score))
+
+    def _calculate_embedding_entropy(self, embedding_vector: np.ndarray) -> float:
+        """Calculate entropy of the embedding vector.
+        
+        Args:
+            embedding_vector: Embedding vector
+            
+        Returns:
+            Entropy value
+        """
+        try:
+            # Normalize vector to create probability distribution
+            abs_vector = np.abs(embedding_vector)
+            if np.sum(abs_vector) == 0:
+                return 0.0
+            
+            prob_dist = abs_vector / np.sum(abs_vector)
+            
+            # Calculate entropy
+            entropy = -np.sum(prob_dist * np.log2(prob_dist + 1e-10))
+            
+            # Normalize by maximum possible entropy
+            max_entropy = np.log2(len(embedding_vector))
+            normalized_entropy = entropy / max_entropy if max_entropy > 0 else 0.0
+            
+            return float(normalized_entropy)
+        except Exception:
+            return 0.0
+
+    def _calculate_semantic_complexity(self, embedding_vector: np.ndarray) -> float:
+        """Calculate semantic complexity based on embedding characteristics.
+        
+        Args:
+            embedding_vector: Embedding vector
+            
+        Returns:
+            Semantic complexity score (0-1)
+        """
+        try:
+            # Calculate variance as a measure of complexity
+            variance = float(np.var(embedding_vector))
+            
+            # Calculate range of values
+            value_range = float(np.max(embedding_vector) - np.min(embedding_vector))
+            
+            # Calculate sparsity (how many dimensions are near zero)
+            sparsity = float(np.sum(np.abs(embedding_vector) < 0.01) / len(embedding_vector))
+            
+            # Combine metrics (higher variance and range, lower sparsity = higher complexity)
+            complexity = (variance * 0.4 + value_range * 0.4 + (1 - sparsity) * 0.2)
+            
+            # Normalize to 0-1 range (approximate)
+            return min(1.0, max(0.0, complexity / 2.0))
+        except Exception:
+            return 0.5
+
+    def _calculate_pattern_diversity(self, embedding_vector: np.ndarray) -> float:
+        """Calculate pattern diversity in the embedding.
+        
+        Args:
+            embedding_vector: Embedding vector
+            
+        Returns:
+            Pattern diversity score (0-1)
+        """
+        try:
+            # Split vector into chunks and analyze diversity
+            chunk_size = max(1, len(embedding_vector) // 8)
+            chunks = [embedding_vector[i:i+chunk_size] 
+                     for i in range(0, len(embedding_vector), chunk_size)]
+            
+            if len(chunks) < 2:
+                return 0.5
+            
+            # Calculate pairwise cosine similarities between chunks
+            similarities = []
+            for i in range(len(chunks)):
+                for j in range(i+1, len(chunks)):
+                    sim = self._cosine_similarity_vectors(chunks[i], chunks[j])
+                    similarities.append(sim)
+            
+            if not similarities:
+                return 0.5
+            
+            # Diversity is inverse of average similarity
+            avg_similarity = np.mean(similarities)
+            diversity = 1.0 - avg_similarity
+            
+            return float(max(0.0, min(1.0, diversity)))
+        except Exception:
+            return 0.5
+
+    def _analyze_code_structure(self, code: str, language: str) -> Dict[str, Any]:
+        """Analyze code structure patterns.
+        
+        Args:
+            code: Source code
+            language: Programming language
+            
+        Returns:
+            Structure analysis results
+        """
+        lines = code.split("\n")
+        non_empty_lines = [line for line in lines if line.strip()]
+        
+        structure = {
+            "total_lines": len(lines),
+            "code_lines": len(non_empty_lines),
+            "comment_lines": sum(1 for line in lines if line.strip().startswith('#')),
+            "blank_lines": len(lines) - len(non_empty_lines),
+            "indentation_levels": self._analyze_indentation(lines),
+            "function_count": self._count_functions(code, language),
+            "class_count": self._count_classes(code, language),
+            "import_count": self._count_imports(code, language),
+            "control_structures": self._count_control_structures(code, language),
+        }
+        
+        # Calculate ratios
+        if structure["total_lines"] > 0:
+            structure["comment_ratio"] = structure["comment_lines"] / structure["total_lines"]
+            structure["code_density"] = structure["code_lines"] / structure["total_lines"]
+        else:
+            structure["comment_ratio"] = 0.0
+            structure["code_density"] = 0.0
+        
+        return structure
+
+    def _analyze_security_patterns(self, code: str, language: str, embedding_vector: np.ndarray) -> Dict[str, Any]:
+        """Analyze security-related patterns.
+        
+        Args:
+            code: Source code
+            language: Programming language
+            embedding_vector: Code embedding vector
+            
+        Returns:
+            Security pattern analysis
+        """
+        # Enhanced security pattern detection
+        security_indicators = {
+            "python": [
+                "eval(", "exec(", "input(", "raw_input(", "pickle.loads", "yaml.load",
+                "shell=True", "sql", "query", "password", "secret", "api_key", "token",
+                "subprocess", "os.system", "os.popen", "__import__", "compile("
+            ],
+            "javascript": [
+                "eval(", "innerHTML", "document.write", "setTimeout(", "setInterval(",
+                "new Function(", "localStorage", "sessionStorage", "cookie", "btoa", "atob",
+                "XMLHttpRequest", "fetch(", "postMessage", "window.open"
+            ],
+            "java": [
+                "Runtime.exec", "ProcessBuilder", "Class.forName", "Method.invoke",
+                "URLClassLoader", "ScriptEngine", "Expression", "Statement.execute"
+            ]
+        }
+        
+        patterns = security_indicators.get(language, security_indicators["python"])
+        
+        detected_patterns = []
+        risk_score = 0.0
+        
+        code_lower = code.lower()
+        for pattern in patterns:
+            if pattern.lower() in code_lower:
+                detected_patterns.append(pattern)
+                # Different patterns have different risk weights
+                if pattern in ["eval(", "exec(", "os.system"]:
+                    risk_score += 0.3
+                elif pattern in ["subprocess", "Runtime.exec", "innerHTML"]:
+                    risk_score += 0.2
+                else:
+                    risk_score += 0.1
+        
+        # Analyze embedding for potential security concerns
+        embedding_risk = self._analyze_embedding_security_signals(embedding_vector)
+        
+        return {
+            "detected_patterns": detected_patterns,
+            "pattern_count": len(detected_patterns),
+            "risk_score": min(1.0, risk_score),
+            "embedding_security_score": embedding_risk,
+            "high_risk_patterns": [p for p in detected_patterns 
+                                 if p in ["eval(", "exec(", "os.system", "Runtime.exec"]],
+            "medium_risk_patterns": [p for p in detected_patterns 
+                                   if p in ["subprocess", "innerHTML", "document.write"]],
+        }
+
+    def _calculate_overall_risk(self, structural: Dict, semantic: Dict, security: Dict) -> float:
+        """Calculate overall risk score combining all analyses.
+        
+        Args:
+            structural: Structural analysis results
+            semantic: Semantic analysis results  
+            security: Security analysis results
+            
+        Returns:
+            Overall risk score (0-1)
+        """
+        try:
+            # Weight different risk factors
+            structure_risk = (
+                structural.get("complexity_score", 0) * 0.3 +
+                (1 - structural.get("maintainability_score", 1)) * 0.2 +
+                (1 - structural.get("code_quality_score", 1)) * 0.2
+            )
+            
+            semantic_risk = (
+                semantic.get("semantic_complexity", 0) * 0.4 +
+                min(semantic.get("embedding_entropy", 0), 0.5) * 0.3
+            )
+            
+            security_risk = security.get("risk_score", 0) * 0.8 + security.get("embedding_security_score", 0) * 0.2
+            
+            # Combine with weights: security most important, then structure, then semantic
+            overall_risk = (
+                security_risk * 0.5 +
+                structure_risk * 0.3 +
+                semantic_risk * 0.2
+            )
+            
+            return float(max(0.0, min(1.0, overall_risk)))
+        except Exception:
+            return 0.5
+
+    def _analyze_indentation(self, lines: List[str]) -> Dict[str, int]:
+        """Analyze indentation patterns."""
+        indentation_levels = {}
+        for line in lines:
+            if line.strip():
+                leading_spaces = len(line) - len(line.lstrip())
+                level = leading_spaces // 4  # Assume 4-space indentation
+                indentation_levels[level] = indentation_levels.get(level, 0) + 1
+        return indentation_levels
+
+    def _count_functions(self, code: str, language: str) -> int:
+        """Count function definitions."""
+        if language == "python":
+            return code.count("def ")
+        elif language in ["javascript", "typescript"]:
+            return code.count("function ") + code.count("=> ")
+        elif language == "java":
+            return len([line for line in code.split("\n") 
+                       if "public" in line and "(" in line and "{" in line])
+        return 0
+
+    def _count_classes(self, code: str, language: str) -> int:
+        """Count class definitions."""
+        if language in ["python", "java"]:
+            return code.count("class ")
+        elif language in ["javascript", "typescript"]:
+            return code.count("class ")
+        return 0
+
+    def _count_imports(self, code: str, language: str) -> int:
+        """Count import statements."""
+        if language == "python":
+            return code.count("import ") + code.count("from ")
+        elif language in ["javascript", "typescript"]:
+            return code.count("import ") + code.count("require(")
+        elif language == "java":
+            return code.count("import ")
+        return 0
+
+    def _count_control_structures(self, code: str, language: str) -> Dict[str, int]:
+        """Count control structure usage."""
+        structures = {
+            "if_statements": code.count("if "),
+            "for_loops": code.count("for "),
+            "while_loops": code.count("while "),
+            "try_blocks": code.count("try"),
+        }
+        
+        if language == "python":
+            structures["with_statements"] = code.count("with ")
+            structures["async_functions"] = code.count("async def")
+        
+        return structures
+
+    def _analyze_embedding_security_signals(self, embedding_vector: np.ndarray) -> float:
+        """Analyze embedding for security-related signals.
+        
+        This is a placeholder for more sophisticated analysis that would
+        require trained models to detect security patterns in embeddings.
+        
+        Args:
+            embedding_vector: Code embedding vector
+            
+        Returns:
+            Security risk score from embedding analysis (0-1)
+        """
+        try:
+            # Simple heuristic: high magnitude values might indicate complex/risky code
+            max_magnitude = float(np.max(np.abs(embedding_vector)))
+            mean_magnitude = float(np.mean(np.abs(embedding_vector)))
+            
+            # High variance might indicate complex control flow
+            variance = float(np.var(embedding_vector))
+            
+            # Combine signals (this is a basic heuristic)
+            risk_signal = min(1.0, (max_magnitude * 0.3 + mean_magnitude * 0.3 + variance * 0.4) / 3.0)
+            
+            return risk_signal
+        except Exception:
+            return 0.0
+
     def clear_cache(self) -> None:
         """Clear embedding cache."""
         self.embedding_cache.clear()
         logger.info("Embedding cache cleared")
+
+    def cleanup_cache(self, max_age_hours: int = 24) -> None:
+        """Clean up old cache entries.
+        
+        Args:
+            max_age_hours: Maximum age of cache entries in hours
+        """
+        from datetime import timedelta
+        cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
+        
+        expired_keys = [
+            key for key, embedding in self.embedding_cache.items()
+            if embedding.created_at < cutoff_time
+        ]
+        
+        for key in expired_keys:
+            del self.embedding_cache[key]
+        
+        if expired_keys:
+            logger.info(f"Cleaned up {len(expired_keys)} expired cache entries")
+
+    @classmethod
+    def cleanup_model_cache(cls) -> None:
+        """Clean up the class-level model cache."""
+        with cls._model_lock:
+            cls._model_cache.clear()
+            logger.info("Cleaned up model cache")
 
     def get_cache_stats(self) -> Dict[str, int]:
         """Get cache statistics.
