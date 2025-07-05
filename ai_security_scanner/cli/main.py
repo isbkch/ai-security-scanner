@@ -294,7 +294,7 @@ def output_table(result: "ScanResult") -> None:
 
 
 @cli.command()
-@click.argument("repo", help="GitHub repository (owner/repo)")
+@click.argument("repo")
 @click.option("--branch", help="Branch to scan (default: main)")
 @click.option(
     "--output",
@@ -360,7 +360,7 @@ def config_info(ctx: click.Context) -> None:
 
 
 @cli.command()
-@click.argument("code", help="Code snippet to analyze")
+@click.argument("code")
 @click.option("--language", "-l", required=True, help="Programming language")
 @click.option("--type", "-t", help="Vulnerability type to check for")
 @click.pass_context
