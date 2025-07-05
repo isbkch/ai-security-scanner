@@ -248,7 +248,7 @@ class CodeBERTEmbedder:
         language: str = "python",
         threshold: float = 0.8,
     ) -> List[Tuple[str, float]]:
-        """Find similar code snippets.
+        """Find similar code snippets using optimized batch processing.
 
         Args:
             target_code: Code to find similarities for
@@ -257,45 +257,135 @@ class CodeBERTEmbedder:
             threshold: Similarity threshold
 
         Returns:
-            List of (code, similarity_score) tuples
+            List of (code, similarity_score) tuples sorted by similarity
         """
-        target_embedding = self.generate_embedding(target_code, language)
-        similar_codes = []
+        if not code_snippets:
+            return []
+            
+        try:
+            # Generate target embedding once
+            target_embedding = self.generate_embedding(target_code, language)
+            target_vector = np.array(target_embedding.embedding)
+            
+            # Batch process snippets for better performance
+            batch_size = 50  # Process in batches to manage memory
+            similar_codes = []
+            
+            for i in range(0, len(code_snippets), batch_size):
+                batch = code_snippets[i:i + batch_size]
+                batch_embeddings = []
+                
+                # Generate embeddings for batch
+                for snippet in batch:
+                    try:
+                        embedding = self.generate_embedding(snippet, language)
+                        batch_embeddings.append((snippet, np.array(embedding.embedding)))
+                    except Exception as e:
+                        logger.debug(f"Failed to generate embedding for snippet: {e}")
+                        continue
+                
+                # Calculate similarities for batch
+                for snippet, snippet_vector in batch_embeddings:
+                    try:
+                        similarity_score = self._cosine_similarity_vectors(target_vector, snippet_vector)
+                        
+                        if similarity_score >= threshold:
+                            similar_codes.append((snippet, similarity_score))
+                    except Exception as e:
+                        logger.debug(f"Failed to calculate similarity: {e}")
+                        continue
+            
+            # Sort by similarity score (descending) and limit results
+            similar_codes.sort(key=lambda x: x[1], reverse=True)
+            
+            # Limit to top 20 results to prevent excessive memory usage
+            return similar_codes[:20]
+            
+        except Exception as e:
+            logger.error(f"Error in find_similar_code: {e}")
+            return []
 
-        for snippet in code_snippets:
-            snippet_embedding = self.generate_embedding(snippet, language)
-            similarity_score = self.similarity(target_embedding, snippet_embedding)
+    def _cosine_similarity_vectors(self, vec1: np.ndarray, vec2: np.ndarray) -> float:
+        """Calculate cosine similarity between two vectors efficiently.
+        
+        Args:
+            vec1: First vector
+            vec2: Second vector
+            
+        Returns:
+            Cosine similarity score
+        """
+        try:
+            # Handle zero vectors
+            norm1 = np.linalg.norm(vec1)
+            norm2 = np.linalg.norm(vec2)
+            
+            if norm1 == 0.0 or norm2 == 0.0:
+                return 0.0
+            
+            return np.dot(vec1, vec2) / (norm1 * norm2)
+        except Exception:
+            return 0.0
 
-            if similarity_score >= threshold:
-                similar_codes.append((snippet, similarity_score))
-
-        # Sort by similarity score (descending)
-        similar_codes.sort(key=lambda x: x[1], reverse=True)
-
-        return similar_codes
-
-    def analyze_code_patterns(self, code: str, language: str = "python") -> Dict[str, float]:
-        """Analyze code patterns using embeddings.
+    def analyze_code_patterns(self, code: str, language: str = "python") -> Dict[str, Any]:
+        """Analyze code patterns using embeddings and pattern recognition.
 
         Args:
             code: Source code to analyze
             language: Programming language
 
         Returns:
-            Dictionary with pattern analysis results
+            Dictionary with comprehensive pattern analysis results
         """
-        embedding = self.generate_embedding(code, language)
-
-        # This would typically use trained classifiers on top of embeddings
-        # For now, return basic analysis
-        analysis = {
-            "complexity_score": self._estimate_complexity(code),
-            "security_risk_score": self._estimate_security_risk(code),
-            "maintainability_score": self._estimate_maintainability(code),
-            "embedding_magnitude": np.linalg.norm(embedding.embedding),
-        }
-
-        return analysis
+        try:
+            # Generate embedding for semantic analysis
+            embedding = self.generate_embedding(code, language)
+            embedding_vector = np.array(embedding.embedding)
+            
+            # Basic structural analysis
+            structural_analysis = {
+                "complexity_score": self._estimate_complexity(code),
+                "security_risk_score": self._estimate_security_risk(code),
+                "maintainability_score": self._estimate_maintainability(code),
+                "code_quality_score": self._estimate_code_quality(code),
+            }
+            
+            # Embedding-based analysis
+            semantic_analysis = {
+                "embedding_magnitude": float(np.linalg.norm(embedding_vector)),
+                "embedding_entropy": self._calculate_embedding_entropy(embedding_vector),
+                "semantic_complexity": self._calculate_semantic_complexity(embedding_vector),
+                "pattern_diversity": self._calculate_pattern_diversity(embedding_vector),
+            }
+            
+            # Code structure patterns
+            structure_patterns = self._analyze_code_structure(code, language)
+            
+            # Security-specific patterns
+            security_patterns = self._analyze_security_patterns(code, language, embedding_vector)
+            
+            # Combine all analyses
+            analysis = {
+                **structural_analysis,
+                **semantic_analysis,
+                "structure_patterns": structure_patterns,
+                "security_patterns": security_patterns,
+                "overall_risk_score": self._calculate_overall_risk(
+                    structural_analysis, semantic_analysis, security_patterns
+                ),
+                "analysis_metadata": {
+                    "model_used": self.model_name,
+                    "embedding_dimensions": len(embedding_vector),
+                    "code_length": len(code),
+                    "language": language,
+                }
+            }
+            
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"Error in analyze_code_patterns: {e}")
+            return {"error": str(e), "analysis_failed": True}
 
     def _estimate_complexity(self, code: str) -> float:
         """Estimate code complexity (basic implementation).
