@@ -1,0 +1,83 @@
+# AI Security Scanner Configuration
+# Copy this file to .ai-security-scanner.yml and customize as needed
+
+# LLM Configuration
+llm:
+  provider: "openai"  # Options: "openai", "anthropic"
+  model: "gpt-4"      # OpenAI: gpt-4, gpt-3.5-turbo | Anthropic: claude-3-sonnet, claude-3-haiku
+  api_key_env: "OPENAI_API_KEY"  # Environment variable containing API key
+  temperature: 0.1    # Lower values for more focused responses
+  max_tokens: 1000    # Maximum tokens in LLM response
+  timeout: 30         # Request timeout in seconds
+  retry_attempts: 3   # Number of retry attempts
+  rate_limit_requests_per_minute: 60  # Rate limiting
+
+# Scanner Configuration
+scanner:
+  languages:
+    - "python"
+    - "javascript"
+    # - "typescript"
+    # - "java"
+    # - "csharp"
+  
+  patterns:
+    - "owasp-top-10"
+    # - "custom"
+  
+  false_positive_reduction: true  # Use LLM to reduce false positives
+  max_file_size_mb: 10           # Skip files larger than this
+  max_files_per_scan: 10000      # Limit total files scanned
+  confidence_threshold: 0.5       # Minimum confidence score (0.0-1.0)
+  enable_ai_analysis: true       # Enable AI-powered analysis
+  
+  # File patterns to include
+  include_patterns:
+    - "*.py"
+    - "*.js"
+    - "*.ts"
+    - "*.jsx"
+    - "*.tsx"
+  
+  # File/directory patterns to exclude
+  exclude_patterns:
+    - "*/node_modules/*"
+    - "*/venv/*"
+    - "*/env/*"
+    - "*/.git/*"
+    - "*/dist/*"
+    - "*/build/*"
+    - "*/target/*"
+    - "*/__pycache__/*"
+    - "*.pyc"
+    - "*.min.js"
+    - "*.bundle.js"
+
+# Database Configuration (for scan history)
+database:
+  host: "localhost"
+  port: 5432
+  database: "ai_security_scanner"
+  username: "scanner"
+  password_env: "DB_PASSWORD"
+  ssl_mode: "prefer"
+  pool_size: 10
+  max_overflow: 20
+  pool_timeout: 30
+
+# GitHub Integration
+github:
+  token_env: "GITHUB_TOKEN"
+  webhook_secret_env: "GITHUB_WEBHOOK_SECRET"
+  api_base_url: "https://api.github.com"
+  timeout: 30
+  max_file_size: 1000000  # 1MB limit for individual files
+  clone_depth: 1          # Shallow clone depth
+
+# Logging Configuration
+debug: false
+log_level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+# Output Configuration
+output_format: "json"    # Options: json, sarif, table
+report_template: "default"

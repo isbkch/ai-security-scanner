@@ -1,0 +1,100 @@
+name: 'AI Security Scanner'
+description: 'AI-powered code security scanner with LLM-enhanced vulnerability detection'
+author: 'AI Security Scanner Contributors'
+
+branding:
+  icon: 'shield'
+  color: 'red'
+
+inputs:
+  token:
+    description: 'GitHub token for API access'
+    required: true
+    default: ${{ github.token }}
+  
+  path:
+    description: 'Path to scan (default: .)'
+    required: false
+    default: '.'
+  
+  output-format:
+    description: 'Output format (json, sarif, table)'
+    required: false
+    default: 'sarif'
+  
+  output-file:
+    description: 'Output file path'
+    required: false
+    default: 'security-results.sarif'
+  
+  severity-threshold:
+    description: 'Minimum severity level (LOW, MEDIUM, HIGH, CRITICAL)'
+    required: false
+    default: 'MEDIUM'
+  
+  languages:
+    description: 'Comma-separated list of languages to scan'
+    required: false
+    default: 'python,javascript'
+  
+  enable-ai-analysis:
+    description: 'Enable AI-powered analysis'
+    required: false
+    default: 'true'
+  
+  llm-provider:
+    description: 'LLM provider (openai, anthropic)'
+    required: false
+    default: 'openai'
+  
+  llm-model:
+    description: 'LLM model to use'
+    required: false
+    default: 'gpt-4'
+  
+  api-key:
+    description: 'API key for LLM provider'
+    required: false
+  
+  fail-on-findings:
+    description: 'Fail the action if vulnerabilities are found'
+    required: false
+    default: 'true'
+  
+  upload-sarif:
+    description: 'Upload SARIF results to GitHub Security tab'
+    required: false
+    default: 'true'
+
+outputs:
+  vulnerabilities-found:
+    description: 'Number of vulnerabilities found'
+  
+  scan-duration:
+    description: 'Scan duration in seconds'
+  
+  files-scanned:
+    description: 'Number of files scanned'
+  
+  results-file:
+    description: 'Path to results file'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  env:
+    GITHUB_TOKEN: ${{ inputs.token }}
+    AI_SCANNER_LLM_PROVIDER: ${{ inputs.llm-provider }}
+    AI_SCANNER_LLM_MODEL: ${{ inputs.llm-model }}
+    OPENAI_API_KEY: ${{ inputs.api-key }}
+    ANTHROPIC_API_KEY: ${{ inputs.api-key }}
+  args:
+    - scan
+    - ${{ inputs.path }}
+    - --output
+    - ${{ inputs.output-format }}
+    - --file
+    - ${{ inputs.output-file }}
+    - --severity
+    - ${{ inputs.severity-threshold }}
+    - ${{ inputs.enable-ai-analysis == 'false' && '--no-ai' || '' }}

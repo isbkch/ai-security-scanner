@@ -1,0 +1,224 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-security-scanner"
+version = "0.1.0"
+description = "AI-powered code security scanner with LLM-enhanced vulnerability detection"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "AI Security Scanner Contributors", email = "dev@example.com"}
+]
+maintainers = [
+    {name = "AI Security Scanner Contributors", email = "dev@example.com"}
+]
+keywords = ["security", "code-analysis", "ai", "llm", "sast", "vulnerability"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "click>=8.0.0",
+    "pydantic>=2.0.0",
+    "sqlalchemy>=2.0.0",
+    "psycopg2-binary>=2.9.0",
+    "alembic>=1.12.0",
+    "transformers>=4.21.0",
+    "torch>=2.0.0",
+    "openai>=1.0.0",
+    "anthropic>=0.3.0",
+    "pygithub>=1.59.0",
+    "pyyaml>=6.0.0",
+    "jinja2>=3.1.0",
+    "rich>=13.0.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+    "aiohttp>=3.8.0",
+    "asyncio>=3.4.3",
+    "dataclasses-json>=0.6.0",
+    "python-multipart>=0.0.6",
+    "tree-sitter>=0.20.0",
+    "tree-sitter-python>=0.20.0",
+    "tree-sitter-javascript>=0.20.0",
+    "semver>=3.0.0",
+    "packaging>=23.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-mock>=3.10.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.0.0",
+    "coverage>=7.0.0",
+    "bandit>=1.7.0",
+    "safety>=2.3.0",
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=1.3.0",
+    "moto>=4.2.0",
+    "httpx>=0.24.0",
+    "factory-boy>=3.3.0",
+]
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=1.3.0",
+    "myst-parser>=2.0.0",
+    "sphinx-autodoc-typehints>=1.24.0",
+]
+api = [
+    "fastapi>=0.104.0",
+    "uvicorn>=0.23.0",
+    "gunicorn>=21.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/ai-security-scanner"
+Documentation = "https://ai-security-scanner.readthedocs.io/"
+Repository = "https://github.com/your-org/ai-security-scanner"
+Issues = "https://github.com/your-org/ai-security-scanner/issues"
+Changelog = "https://github.com/your-org/ai-security-scanner/blob/main/CHANGELOG.md"
+
+[project.scripts]
+ai-security-scanner = "ai_security_scanner.cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ai_security_scanner*"]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+ai_security_scanner = [
+    "core/patterns/*.yml",
+    "core/patterns/*.json",
+    "templates/*.j2",
+    "py.typed",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py38']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "tree_sitter.*",
+    "transformers.*",
+    "torch.*",
+    "openai.*",
+    "anthropic.*",
+    "github.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--disable-warnings",
+    "--tb=short",
+    "-ra",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "api: marks tests that require API access",
+    "db: marks tests that require database access",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["ai_security_scanner"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/conftest.py",
+    "*/venv/*",
+    "*/migrations/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+show_missing = true
+skip_covered = false
+
+[tool.bandit]
+exclude_dirs = ["tests", "build", "dist", ".venv"]
+skips = ["B101", "B601"]
+
+[tool.bandit.assert_used]
+skips = ["*_test.py", "*test_*.py"]
