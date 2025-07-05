@@ -25,13 +25,13 @@ class VulnerabilityAnalyzer:
         self.config = config or Config.from_env()
         self.llm_provider: Optional[LLMProvider] = None
         self.embedder: Optional[CodeBERTEmbedder] = None
-
-        # Initialize components if AI analysis is enabled
-        if self.config.scanner.enable_ai_analysis:
-            self._initialize_ai_components()
+        self._ai_components_initialized = False
 
     def _initialize_ai_components(self) -> None:
         """Initialize AI components (LLM and embeddings)."""
+        if self._ai_components_initialized:
+            return
+            
         try:
             # Initialize LLM provider
             self.llm_provider = create_llm_provider(self.config)
@@ -40,11 +40,14 @@ class VulnerabilityAnalyzer:
             # Initialize embeddings
             self.embedder = CodeBERTEmbedder(self.config)
             logger.info("Initialized CodeBERT embedder")
+            
+            self._ai_components_initialized = True
 
         except Exception as e:
             logger.error(f"Error initializing AI components: {e}")
             self.llm_provider = None
             self.embedder = None
+            raise
 
     async def analyze_vulnerabilities(
         self, vulnerabilities: List[VulnerabilityResult], source_code: str, context: Dict[str, Any]
@@ -59,7 +62,18 @@ class VulnerabilityAnalyzer:
         Returns:
             Enhanced vulnerability results
         """
-        if not self.config.scanner.enable_ai_analysis or not self.llm_provider:
+        if not self.config.scanner.enable_ai_analysis:
+            return vulnerabilities
+
+        # Initialize AI components when needed
+        if not self._ai_components_initialized:
+            try:
+                self._initialize_ai_components()
+            except Exception as e:
+                logger.warning(f"Failed to initialize AI components: {e}")
+                return vulnerabilities
+
+        if not self.llm_provider:
             return vulnerabilities
 
         enhanced_vulnerabilities = []
