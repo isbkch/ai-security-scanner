@@ -4,3 +4,4 @@ ai_security_scanner/utils/__pycache__
 ai_security_scanner/models/embeddings/__pycache__
 ai_security_scanner/core/__pycache__
 ai_security_scanner/core/llm/__pycache__
+ai_security_scanner/__pycache__
