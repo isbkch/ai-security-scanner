@@ -145,17 +145,18 @@ class Config:
         """Get API key from environment variable."""
         return os.getenv(env_var)
 
-    def validate(self, require_db: bool = False, require_github: bool = False) -> None:
+    def validate(self, require_db: bool = False, require_github: bool = False, require_ai: bool = False) -> None:
         """Validate configuration.
         
         Args:
             require_db: Whether database configuration is required
             require_github: Whether GitHub configuration is required
+            require_ai: Whether AI/LLM configuration is required
         """
         errors = []
 
-        # Validate LLM configuration
-        if self.scanner.enable_ai_analysis:
+        # Validate LLM configuration only if required
+        if require_ai and self.scanner.enable_ai_analysis:
             if not self.get_api_key(self.llm.api_key_env):
                 errors.append(
                     f"LLM API key not found in environment variable: {self.llm.api_key_env}"

@@ -180,7 +180,7 @@ async def _run_scan(
                 files_scanned=1,
                 total_lines_scanned=0,
                 scanner_version="0.1.0",
-                configuration=config.to_dict(),
+                configuration=config.to_dict_safe(),
                 metrics={},
             )
 
@@ -294,7 +294,7 @@ def output_table(result: "ScanResult") -> None:
 
 
 @cli.command()
-@click.argument("repo", help="GitHub repository (owner/repo)")
+@click.argument("repo")
 @click.option("--branch", help="Branch to scan (default: main)")
 @click.option(
     "--output",
@@ -360,7 +360,7 @@ def config_info(ctx: click.Context) -> None:
 
 
 @cli.command()
-@click.argument("code", help="Code snippet to analyze")
+@click.argument("code")
 @click.option("--language", "-l", required=True, help="Programming language")
 @click.option("--type", "-t", help="Vulnerability type to check for")
 @click.pass_context
