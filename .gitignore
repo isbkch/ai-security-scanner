@@ -4,10 +4,7 @@ ai_security_scanner/utils/__pycache__
 ai_security_scanner/models/embeddings/__pycache__
 ai_security_scanner/core/__pycache__
 ai_security_scanner/core/llm/__pycache__
-<<<<<<< HEAD
 ai_security_scanner/__pycache__
-=======
-
 # Build artifacts
 __pycache__/
 *.pyc
@@ -30,7 +27,6 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
->>>>>>> main
 ai_security_scanner/cli/__pycache__
 ai_security_scanner/core/patterns/__pycache__
 ai_security_scanner/integrations/__pycache__
