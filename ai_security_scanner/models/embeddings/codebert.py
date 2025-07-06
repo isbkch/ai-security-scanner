@@ -2,8 +2,10 @@
 
 import hashlib
 import logging
+import weakref
+from collections import OrderedDict
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -15,12 +17,177 @@ from ai_security_scanner.core.models import CodeEmbedding
 logger = logging.getLogger(__name__)
 
 
-class CodeBERTEmbedder:
-    """CodeBERT-based code embeddings generator."""
+class LRUCache:
+    """Thread-safe LRU cache implementation for embeddings."""
     
-    # Class-level model cache to share across instances
-    _model_cache = {}
-    _model_lock = None
+    def __init__(self, max_size: int):
+        """Initialize LRU cache.
+        
+        Args:
+            max_size: Maximum number of items to cache
+        """
+        self.max_size = max_size
+        self._cache = OrderedDict()
+        self._lock = None
+        
+    def get(self, key: str) -> Optional[CodeEmbedding]:
+        """Get item from cache, updating access order.
+        
+        Args:
+            key: Cache key
+            
+        Returns:
+            Cached item or None
+        """
+        if key not in self._cache:
+            return None
+            
+        # Move to end (most recently used)
+        self._cache.move_to_end(key)
+        return self._cache[key]
+    
+    def put(self, key: str, value: CodeEmbedding) -> None:
+        """Put item in cache, evicting LRU item if necessary.
+        
+        Args:
+            key: Cache key
+            value: Value to cache
+        """
+        if key in self._cache:
+            # Update existing and move to end
+            self._cache.move_to_end(key)
+            self._cache[key] = value
+            return
+            
+        # Add new item
+        self._cache[key] = value
+        
+        # Evict LRU items if cache is full
+        while len(self._cache) > self.max_size:
+            # Remove least recently used (first item)
+            evicted_key = next(iter(self._cache))
+            del self._cache[evicted_key]
+            logger.debug(f"Evicted LRU cache entry: {evicted_key[:8]}...")
+    
+    def clear(self) -> None:
+        """Clear all cache entries."""
+        self._cache.clear()
+    
+    def __len__(self) -> int:
+        """Get number of cached items."""
+        return len(self._cache)
+    
+    def __contains__(self, key: str) -> bool:
+        """Check if key is in cache."""
+        return key in self._cache
+
+
+class ModelRegistry:
+    """Singleton registry for managing shared models with proper cleanup."""
+    
+    _instance = None
+    _models = {}
+    _model_refs = {}
+    _lock = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            import threading
+            cls._lock = threading.Lock()
+        return cls._instance
+    
+    def get_model(self, model_name: str, device: torch.device) -> Tuple[AutoTokenizer, AutoModel]:
+        """Get or create model with reference counting.
+        
+        Args:
+            model_name: Name of the model
+            device: Device to load model on
+            
+        Returns:
+            Tuple of (tokenizer, model)
+        """
+        cache_key = f"{model_name}:{device}"
+        
+        with self._lock:
+            if cache_key in self._models:
+                # Model exists, increment reference count
+                self._model_refs[cache_key] = self._model_refs.get(cache_key, 0) + 1
+                model_data = self._models[cache_key]
+                logger.debug(f"Reusing cached model {model_name}, refs: {self._model_refs[cache_key]}")
+                return model_data["tokenizer"], model_data["model"]
+            
+            # Load new model
+            logger.info(f"Loading new model: {model_name}")
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            model = AutoModel.from_pretrained(model_name)
+            model.to(device)
+            model.eval()
+            
+            # Cache with reference count
+            self._models[cache_key] = {
+                "tokenizer": tokenizer,
+                "model": model,
+                "device": device,
+                "loaded_at": datetime.now()
+            }
+            self._model_refs[cache_key] = 1
+            
+            return tokenizer, model
+    
+    def release_model(self, model_name: str, device: torch.device) -> None:
+        """Release model reference, cleaning up if no references remain.
+        
+        Args:
+            model_name: Name of the model
+            device: Device model is on
+        """
+        cache_key = f"{model_name}:{device}"
+        
+        with self._lock:
+            if cache_key not in self._model_refs:
+                return
+                
+            self._model_refs[cache_key] -= 1
+            logger.debug(f"Released model {model_name}, refs: {self._model_refs[cache_key]}")
+            
+            # Clean up if no more references
+            if self._model_refs[cache_key] <= 0:
+                if cache_key in self._models:
+                    model_data = self._models[cache_key]
+                    # Move model to CPU and delete to free GPU memory
+                    model_data["model"].cpu()
+                    del model_data["model"]
+                    del self._models[cache_key]
+                    del self._model_refs[cache_key]
+                    
+                    # Force garbage collection for GPU memory
+                    if device.type == "cuda":
+                        torch.cuda.empty_cache()
+                    
+                    logger.info(f"Cleaned up model {model_name} from {device}")
+    
+    def cleanup_all(self) -> None:
+        """Clean up all cached models."""
+        with self._lock:
+            for cache_key, model_data in list(self._models.items()):
+                if "model" in model_data:
+                    model_data["model"].cpu()
+                    del model_data["model"]
+            
+            self._models.clear()
+            self._model_refs.clear()
+            
+            # Force garbage collection
+            torch.cuda.empty_cache() if torch.cuda.is_available() else None
+            logger.info("Cleaned up all cached models")
+
+
+class CodeBERTEmbedder:
+    """CodeBERT-based code embeddings generator with proper memory management."""
+    
+    # Shared model registry
+    _model_registry = None
 
     def __init__(self, config: Optional[Config] = None):
         """Initialize CodeBERT embedder.
@@ -32,55 +199,52 @@ class CodeBERTEmbedder:
         self.model_name = "microsoft/codebert-base"
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Cache for embeddings
-        self.embedding_cache: Dict[str, CodeEmbedding] = {}
-        self.cache_size_limit = 1000
-
-        # Initialize lock if not exists
-        if CodeBERTEmbedder._model_lock is None:
-            import threading
-            CodeBERTEmbedder._model_lock = threading.Lock()
-
-        # Initialize model (lazy loading with caching)
+        # Use LRU cache for embeddings
+        self.cache_size_limit = getattr(self.config, 'embedding_cache_size', 1000)
+        self.embedding_cache = LRUCache(self.cache_size_limit)
+        
+        # Initialize model registry
+        if CodeBERTEmbedder._model_registry is None:
+            CodeBERTEmbedder._model_registry = ModelRegistry()
+        
+        # Initialize model reference
         self.tokenizer = None
         self.model = None
-        self._ensure_model_loaded()
+        self._model_loaded = False
+        
+        # Keep weak reference to embedder for cleanup
+        self._finalizer = weakref.finalize(self, self._cleanup_resources)
 
     def _ensure_model_loaded(self) -> None:
-        """Ensure model is loaded with caching for performance."""
-        cache_key = f"{self.model_name}:{self.device}"
-        
-        with CodeBERTEmbedder._model_lock:
-            # Check if model is already cached
-            if cache_key in CodeBERTEmbedder._model_cache:
-                cached_model = CodeBERTEmbedder._model_cache[cache_key]
-                self.tokenizer = cached_model["tokenizer"]
-                self.model = cached_model["model"]
-                logger.debug(f"Using cached CodeBERT model: {self.model_name}")
-                return
-
-            # Load model if not cached
-            try:
-                logger.info(f"Loading CodeBERT model: {self.model_name}")
-
-                self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-                self.model = AutoModel.from_pretrained(self.model_name)
-
-                # Move model to device
-                self.model.to(self.device)
-                self.model.eval()
-
-                # Cache the loaded model
-                CodeBERTEmbedder._model_cache[cache_key] = {
-                    "tokenizer": self.tokenizer,
-                    "model": self.model
-                }
-
-                logger.info(f"CodeBERT model loaded successfully on {self.device}")
-
-            except Exception as e:
-                logger.error(f"Error loading CodeBERT model: {e}")
-                raise
+        """Ensure model is loaded using the model registry."""
+        if self._model_loaded:
+            return
+            
+        try:
+            self.tokenizer, self.model = self._model_registry.get_model(self.model_name, self.device)
+            self._model_loaded = True
+        except Exception as e:
+            logger.error(f"Error loading CodeBERT model: {e}")
+            raise
+    
+    def _cleanup_resources(self) -> None:
+        """Clean up resources when embedder is garbage collected."""
+        try:
+            # Release model reference
+            if self._model_loaded and self._model_registry:
+                self._model_registry.release_model(self.model_name, self.device)
+                logger.debug(f"Released model reference for {self.model_name}")
+            
+            # Clear embedding cache
+            if hasattr(self, 'embedding_cache'):
+                self.embedding_cache.clear()
+                
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
+    
+    def __del__(self):
+        """Destructor to ensure cleanup."""
+        self._cleanup_resources()
 
     def generate_embedding(self, code: str, language: str = "python") -> CodeEmbedding:
         """Generate embedding for code snippet.
@@ -92,13 +256,17 @@ class CodeBERTEmbedder:
         Returns:
             CodeEmbedding object
         """
+        # Ensure model is loaded
+        self._ensure_model_loaded()
+        
         # Generate hash for caching
         code_hash = self._generate_code_hash(code)
 
         # Check cache
-        if code_hash in self.embedding_cache:
-            logger.debug(f"Using cached embedding for code hash: {code_hash}")
-            return self.embedding_cache[code_hash]
+        cached_embedding = self.embedding_cache.get(code_hash)
+        if cached_embedding:
+            logger.debug(f"Using cached embedding for code hash: {code_hash[:8]}...")
+            return cached_embedding
 
         # Generate embedding
         embedding = self._create_embedding(code, language)
@@ -113,7 +281,7 @@ class CodeBERTEmbedder:
         )
 
         # Cache the embedding
-        self._cache_embedding(code_hash, code_embedding)
+        self.embedding_cache.put(code_hash, code_embedding)
 
         return code_embedding
 
@@ -203,30 +371,6 @@ class CodeBERTEmbedder:
         """
         return hashlib.sha256(code.encode("utf-8")).hexdigest()
 
-    def _cache_embedding(self, code_hash: str, embedding: CodeEmbedding) -> None:
-        """Cache embedding with LRU-like size management.
-
-        Args:
-            code_hash: Hash of the code
-            embedding: Code embedding to cache
-        """
-        # Implement LRU-like behavior when cache is full
-        if len(self.embedding_cache) >= self.cache_size_limit:
-            # Remove oldest entries based on creation time
-            sorted_items = sorted(
-                self.embedding_cache.items(),
-                key=lambda x: x[1].created_at
-            )
-            
-            # Remove oldest 20% of entries to avoid frequent cleanup
-            num_to_remove = max(1, len(sorted_items) // 5)
-            for i in range(num_to_remove):
-                oldest_key = sorted_items[i][0]
-                del self.embedding_cache[oldest_key]
-            
-            logger.debug(f"Cache cleanup: removed {num_to_remove} oldest embeddings")
-
-        self.embedding_cache[code_hash] = embedding
 
     def similarity(self, embedding1: CodeEmbedding, embedding2: CodeEmbedding) -> float:
         """Calculate cosine similarity between two embeddings.
@@ -862,41 +1006,24 @@ class CodeBERTEmbedder:
         self.embedding_cache.clear()
         logger.info("Embedding cache cleared")
 
-    def cleanup_cache(self, max_age_hours: int = 24) -> None:
-        """Clean up old cache entries.
-        
-        Args:
-            max_age_hours: Maximum age of cache entries in hours
-        """
-        from datetime import timedelta
-        cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
-        
-        expired_keys = [
-            key for key, embedding in self.embedding_cache.items()
-            if embedding.created_at < cutoff_time
-        ]
-        
-        for key in expired_keys:
-            del self.embedding_cache[key]
-        
-        if expired_keys:
-            logger.info(f"Cleaned up {len(expired_keys)} expired cache entries")
-
     @classmethod
-    def cleanup_model_cache(cls) -> None:
-        """Clean up the class-level model cache."""
-        with cls._model_lock:
-            cls._model_cache.clear()
-            logger.info("Cleaned up model cache")
+    def cleanup_model_registry(cls) -> None:
+        """Clean up all models in the registry."""
+        if cls._model_registry:
+            cls._model_registry.cleanup_all()
+            logger.info("Cleaned up model registry")
 
-    def get_cache_stats(self) -> Dict[str, int]:
+    def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache statistics.
 
         Returns:
             Dictionary with cache statistics
         """
+        cache_size = len(self.embedding_cache)
         return {
-            "cache_size": len(self.embedding_cache),
+            "cache_size": cache_size,
             "cache_limit": self.cache_size_limit,
-            "cache_usage_percent": int((len(self.embedding_cache) / self.cache_size_limit) * 100),
+            "cache_usage_percent": int((cache_size / self.cache_size_limit) * 100) if self.cache_size_limit > 0 else 0,
+            "model_loaded": self._model_loaded,
+            "device": str(self.device),
         }
