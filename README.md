@@ -1,5 +1,7 @@
 # AI-Powered Code Security Scanner
 
+## Project Status: Alpha (v0.1.0) → Beta-Ready 🎉
+
 An intelligent code security scanner that combines traditional SAST analysis with AI-powered vulnerability detection and explanation.
 
 ## Features
