@@ -4,7 +4,7 @@
 
 An intelligent code security scanner that combines traditional SAST analysis with AI-powered vulnerability detection and explanation.
 
-## 🆕 Recent Improvements (January 2025)
+## 🆕 Recent Improvements (October 2025)
 
 We've made **11 major improvements** taking the project from alpha to production-ready:
 
@@ -347,15 +347,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
 ## Project Statistics
 
-| Metric | Value |
-|--------|-------|
-| **Test Coverage** | ~60% (1,800+ lines of tests) |
-| **Code Quality** | 10+ automated pre-commit checks |
-| **Exception Types** | 30+ specific exception classes |
-| **Database Models** | 5 comprehensive models |
+| Metric                      | Value                                         |
+| --------------------------- | --------------------------------------------- |
+| **Test Coverage**           | ~60% (1,800+ lines of tests)                  |
+| **Code Quality**            | 10+ automated pre-commit checks               |
+| **Exception Types**         | 30+ specific exception classes                |
+| **Database Models**         | 5 comprehensive models                        |
 | **Supported LLM Providers** | OpenAI, Anthropic, Ollama, HuggingFace, Azure |
-| **Languages** | Python, JavaScript (TypeScript coming soon) |
-| **Vulnerability Patterns** | OWASP Top 10 + custom |
+| **Languages**               | Python, JavaScript (TypeScript coming soon)   |
+| **Vulnerability Patterns**  | OWASP Top 10 + custom                         |
 
 ## Roadmap
 
