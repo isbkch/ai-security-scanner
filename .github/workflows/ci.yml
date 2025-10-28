@@ -86,7 +86,7 @@ jobs:
           fail-on-findings: false # Don't fail CI on findings for now
 
       - name: Upload SARIF results
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: security-results.sarif
