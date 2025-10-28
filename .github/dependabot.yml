@@ -1,0 +1,75 @@
+# Dependabot configuration for automated dependency updates
+# See: https://docs.github.com/en/code-security/dependabot
+
+version: 2
+updates:
+  # Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "isbkch"
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    # Group minor and patch updates together
+    groups:
+      development-dependencies:
+        patterns:
+          - "pytest*"
+          - "black"
+          - "isort"
+          - "flake8"
+          - "mypy"
+          - "bandit"
+          - "coverage"
+        update-types:
+          - "minor"
+          - "patch"
+      ai-dependencies:
+        patterns:
+          - "transformers"
+          - "torch"
+          - "openai"
+          - "anthropic"
+        update-types:
+          - "patch"
+    # Security updates have higher priority
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    ignore:
+      # Pin major versions that require breaking changes
+      - dependency-name: "torch"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Docker
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "docker"
