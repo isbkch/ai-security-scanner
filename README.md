@@ -222,20 +222,34 @@ monitoring:
 For scan history and trend analysis (optional but recommended):
 
 ```bash
-# Create PostgreSQL database
-createdb ai_security_scanner
-
-# Run migrations
-alembic upgrade head
-
-# Or use Docker
+# Option 1: Use Docker (recommended)
 docker run -d \
   --name ai-scanner-db \
   -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_USER=scanner \
   -e POSTGRES_DB=ai_security_scanner \
   -p 5432:5432 \
   postgres:15
+
+# Option 2: Create local database
+createdb ai_security_scanner
+
+# Initialize database schema
+ai-security-scanner db init
+
+# Test connection
+ai-security-scanner db test-connection
+
+# View recent scans
+ai-security-scanner db history
 ```
+
+**Database Features:**
+- **Scan History**: Complete record of all scans with metadata
+- **Vulnerability Tracking**: Track vulnerabilities over time and across scans
+- **Trend Analysis**: Compare scans to measure security improvements
+- **Pattern Analytics**: Understand which patterns are most effective
+- **Cost Tracking**: Monitor LLM API usage and estimated costs
 
 ## Development
 
