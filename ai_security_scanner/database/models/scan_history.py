@@ -8,12 +8,14 @@ from sqlalchemy import (
     JSON,
     Column,
     DateTime,
+)
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
     String,
     Text,
-    Enum as SAEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base

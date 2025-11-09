@@ -5,7 +5,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import List, Set, Pattern
+from typing import List, Pattern, Set
 
 from ai_security_scanner.core.config import Config
 
