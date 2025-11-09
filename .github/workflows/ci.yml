@@ -16,10 +16,10 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.11", "3.12"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
@@ -27,7 +27,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Cache dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements-dev.txt') }}
@@ -60,7 +60,7 @@ jobs:
           pytest tests/ --cov=ai_security_scanner --cov-report=xml --cov-report=html
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           file: ./coverage.xml
           flags: unittests
@@ -73,7 +73,7 @@ jobs:
     needs: test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Run AI Security Scanner (self-scan)
         uses: ./
@@ -97,7 +97,7 @@ jobs:
     needs: test
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -151,7 +151,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v6
         with:
           name: python-package
           path: dist/
@@ -178,7 +178,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -188,7 +188,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v6
         with:
           name: python-package
           path: dist/
