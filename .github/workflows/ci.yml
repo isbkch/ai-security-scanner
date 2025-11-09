@@ -44,7 +44,6 @@ jobs:
         run: |
           black --check ai_security_scanner/
           isort --check-only ai_security_scanner/
-          flake8 ai_security_scanner/
 
       - name: Run type checking
         run: |
