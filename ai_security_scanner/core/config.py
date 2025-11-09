@@ -145,9 +145,11 @@ class Config:
         """Get API key from environment variable."""
         return os.getenv(env_var)
 
-    def validate(self, require_db: bool = False, require_github: bool = False, require_ai: bool = False) -> None:
+    def validate(
+        self, require_db: bool = False, require_github: bool = False, require_ai: bool = False
+    ) -> None:
         """Validate configuration.
-        
+
         Args:
             require_db: Whether database configuration is required
             require_github: Whether GitHub configuration is required
@@ -176,15 +178,15 @@ class Config:
 
         if errors:
             raise ValueError(f"Configuration validation failed: {', '.join(errors)}")
-    
+
     def to_dict_safe(self) -> Dict[str, Any]:
         """Convert configuration to dictionary, excluding sensitive data.
-        
+
         Returns:
             Safe configuration dictionary
         """
         safe_config = {}
-        
+
         # LLM config (excluding API key)
         safe_config["llm"] = {
             "provider": self.llm.provider,
@@ -195,7 +197,7 @@ class Config:
             "retry_attempts": self.llm.retry_attempts,
             "rate_limit_requests_per_minute": self.llm.rate_limit_requests_per_minute,
         }
-        
+
         # Scanner config (all safe)
         safe_config["scanner"] = {
             "languages": self.scanner.languages,
@@ -208,7 +210,7 @@ class Config:
             "confidence_threshold": self.scanner.confidence_threshold,
             "enable_ai_analysis": self.scanner.enable_ai_analysis,
         }
-        
+
         # Database config (excluding password)
         safe_config["database"] = {
             "host": self.database.host,
@@ -220,7 +222,7 @@ class Config:
             "max_overflow": self.database.max_overflow,
             "pool_timeout": self.database.pool_timeout,
         }
-        
+
         # GitHub config (excluding token and webhook secret)
         safe_config["github"] = {
             "api_base_url": self.github.api_base_url,
@@ -228,13 +230,13 @@ class Config:
             "max_file_size": self.github.max_file_size,
             "clone_depth": self.github.clone_depth,
         }
-        
+
         # General config
         safe_config["debug"] = self.debug
         safe_config["log_level"] = self.log_level
         safe_config["output_format"] = self.output_format
         safe_config["report_template"] = self.report_template
-        
+
         return safe_config
 
 

@@ -207,7 +207,9 @@ class SARIFExporter:
 
         # Add AI analysis if available (sanitized to prevent sensitive data exposure)
         if vulnerability.ai_explanation:
-            result["properties"]["ai_analysis"] = self._sanitize_ai_explanation(vulnerability.ai_explanation)
+            result["properties"]["ai_analysis"] = self._sanitize_ai_explanation(
+                vulnerability.ai_explanation
+            )
 
         if vulnerability.false_positive_likelihood is not None:
             result["properties"][
@@ -406,29 +408,30 @@ class SARIFExporter:
         }
 
         return mime_types.get(extension, "text/plain")
-    
+
     def _sanitize_ai_explanation(self, explanation: str) -> str:
         """Sanitize AI explanation to remove potential sensitive information.
-        
+
         Args:
             explanation: Raw AI explanation
-            
+
         Returns:
             Sanitized explanation
         """
         # List of patterns that might indicate sensitive information
         sensitive_patterns = [
-            r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',  # Email addresses
-            r'\b(?:\d{1,3}\.){3}\d{1,3}\b',  # IP addresses
-            r'\b[A-Za-z0-9+/]{20,}={0,2}\b',  # Base64 encoded data (potential keys)
-            r'\b[A-Za-z0-9]{32,}\b',  # Long hex strings (potential keys/hashes)
-            r'sk-[A-Za-z0-9]{48}',  # OpenAI API keys
-            r'ghp_[A-Za-z0-9]{36}',  # GitHub personal access tokens
+            r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",  # Email addresses
+            r"\b(?:\d{1,3}\.){3}\d{1,3}\b",  # IP addresses
+            r"\b[A-Za-z0-9+/]{20,}={0,2}\b",  # Base64 encoded data (potential keys)
+            r"\b[A-Za-z0-9]{32,}\b",  # Long hex strings (potential keys/hashes)
+            r"sk-[A-Za-z0-9]{48}",  # OpenAI API keys
+            r"ghp_[A-Za-z0-9]{36}",  # GitHub personal access tokens
         ]
-        
+
         sanitized = explanation
         for pattern in sensitive_patterns:
             import re
-            sanitized = re.sub(pattern, '[REDACTED]', sanitized, flags=re.IGNORECASE)
-            
+
+            sanitized = re.sub(pattern, "[REDACTED]", sanitized, flags=re.IGNORECASE)
+
         return sanitized

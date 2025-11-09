@@ -31,7 +31,7 @@ class VulnerabilityAnalyzer:
         """Initialize AI components (LLM and embeddings)."""
         if self._ai_components_initialized:
             return
-            
+
         try:
             # Initialize LLM provider
             self.llm_provider = create_llm_provider(self.config)
@@ -40,7 +40,7 @@ class VulnerabilityAnalyzer:
             # Initialize embeddings
             self.embedder = CodeBERTEmbedder(self.config)
             logger.info("Initialized CodeBERT embedder")
-            
+
             self._ai_components_initialized = True
 
         except Exception as e:

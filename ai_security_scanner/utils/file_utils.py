@@ -24,7 +24,7 @@ class FileScanner:
         self.config = config
         self.include_patterns = config.scanner.include_patterns
         self.exclude_patterns = config.scanner.exclude_patterns
-        
+
         # Pre-compile patterns for better performance
         self._compiled_include_patterns = self._compile_patterns(self.include_patterns)
         self._compiled_exclude_patterns = self._compile_patterns(self.exclude_patterns)
@@ -65,13 +65,13 @@ class FileScanner:
 
         logger.info(f"Found {len(files_to_scan)} files to scan")
         return files_to_scan
-    
+
     def _compile_patterns(self, patterns: List[str]) -> List[Pattern[str]]:
         """Compile glob patterns to regex for better performance.
-        
+
         Args:
             patterns: List of glob patterns
-            
+
         Returns:
             List of compiled regex patterns
         """

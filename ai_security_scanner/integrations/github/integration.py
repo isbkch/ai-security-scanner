@@ -109,6 +109,7 @@ class GitHubIntegration:
                             file_path = Path(temp_dir) / first_vuln_file
                             if file_path.exists():
                                 import aiofiles
+
                                 async with aiofiles.open(file_path, "r", encoding="utf-8") as f:
                                     source_code = await f.read()
                         except Exception as e:
@@ -173,7 +174,7 @@ class GitHubIntegration:
             if not sanitized_path:
                 logger.warning(f"Skipping potentially malicious path: {content.path}")
                 continue
-                
+
             file_path = Path(base_path) / sanitized_path
 
             # Ensure the resolved path is still within base_path (additional safety check)
@@ -385,35 +386,35 @@ class GitHubIntegration:
 
     def _sanitize_path(self, file_path: str) -> Optional[str]:
         """Sanitize file path to prevent directory traversal attacks.
-        
+
         Args:
             file_path: Raw file path from repository
-            
+
         Returns:
             Sanitized file path or None if malicious
         """
         if not file_path:
             return None
-            
+
         # Normalize path separators
-        normalized_path = file_path.replace('\\', '/')
-        
+        normalized_path = file_path.replace("\\", "/")
+
         # Split path into components
-        path_parts = normalized_path.split('/')
-        
+        path_parts = normalized_path.split("/")
+
         # Check for malicious components
         for part in path_parts:
-            if part in ('..', '.', '') or part.startswith('.'):
-                if part != '.git' and part != '.github':  # Allow some common hidden dirs
+            if part in ("..", ".", "") or part.startswith("."):
+                if part != ".git" and part != ".github":  # Allow some common hidden dirs
                     return None
-                    
+
         # Reconstruct safe path
-        safe_path = '/'.join(part for part in path_parts if part)
-        
+        safe_path = "/".join(part for part in path_parts if part)
+
         # Additional checks
-        if '../' in safe_path or '/..' in safe_path or safe_path.startswith('./'):
+        if "../" in safe_path or "/.." in safe_path or safe_path.startswith("./"):
             return None
-            
+
         return safe_path
 
     def get_repository_info(self, repo_name: str) -> Dict[str, Any]:

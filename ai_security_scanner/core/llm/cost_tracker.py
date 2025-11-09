@@ -124,7 +124,9 @@ class LLMCostTracker:
         self.total_cost += estimate.total_cost
 
         # Update cost by provider
-        self.cost_by_provider[provider] = self.cost_by_provider.get(provider, 0.0) + estimate.total_cost
+        self.cost_by_provider[provider] = (
+            self.cost_by_provider.get(provider, 0.0) + estimate.total_cost
+        )
 
         logger.debug(
             f"Tracked usage: {provider}/{model} - "
@@ -208,9 +210,7 @@ class LLMCostTracker:
                 provider: round(cost, 4) for provider, cost in self.cost_by_provider.items()
             },
             "avg_cost_per_request": (
-                round(self.total_cost / len(self.usage_history), 4)
-                if self.usage_history
-                else 0.0
+                round(self.total_cost / len(self.usage_history), 4) if self.usage_history else 0.0
             ),
         }
 
@@ -251,7 +251,9 @@ class LLMCostTracker:
             "completion_tokens": total_completion,
             "total_tokens": total_prompt + total_completion,
             "total_cost_usd": round(total_cost, 4),
-            "avg_tokens_per_request": round((total_prompt + total_completion) / len(provider_usage)),
+            "avg_tokens_per_request": round(
+                (total_prompt + total_completion) / len(provider_usage)
+            ),
             "avg_cost_per_request": round(total_cost / len(provider_usage), 4),
         }
 

@@ -252,7 +252,9 @@ class SecurityScanner:
 
         return self._scan_with_patterns(code, file_path, context)
 
-    async def _scan_file_async(self, file_path: str, semaphore: asyncio.Semaphore) -> List[VulnerabilityResult]:
+    async def _scan_file_async(
+        self, file_path: str, semaphore: asyncio.Semaphore
+    ) -> List[VulnerabilityResult]:
         """Asynchronously scan a single file for vulnerabilities.
 
         Args:
@@ -354,14 +356,14 @@ class SecurityScanner:
         # Scan files asynchronously
         semaphore = asyncio.Semaphore(10)  # Limit concurrent file operations
         tasks = []
-        
+
         for file_path in files_to_scan:
             task = asyncio.create_task(self._scan_file_async(str(file_path), semaphore))
             tasks.append(task)
 
         # Wait for all scans to complete
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # Collect all vulnerabilities
         all_vulnerabilities = []
         for result in results:

@@ -4,7 +4,17 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import JSON, Column, DateTime, Float, ForeignKey, Integer, String, Text, Enum as SAEnum
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Enum as SAEnum,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -65,7 +75,9 @@ class ScanRecord(Base):
 
     def __repr__(self) -> str:
         """String representation."""
-        return f"<ScanRecord(scan_id='{self.scan_id}', vulnerabilities={self.total_vulnerabilities})>"
+        return (
+            f"<ScanRecord(scan_id='{self.scan_id}', vulnerabilities={self.total_vulnerabilities})>"
+        )
 
 
 class VulnerabilityRecord(Base):
