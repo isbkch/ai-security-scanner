@@ -65,9 +65,7 @@ class ScanPersistenceService:
                     ai_analysis_enabled=scan_result.configuration.get("scanner", {}).get(
                         "enable_ai_analysis", False
                     ),
-                    patterns_used=scan_result.configuration.get("scanner", {}).get(
-                        "patterns", []
-                    ),
+                    patterns_used=scan_result.configuration.get("scanner", {}).get("patterns", []),
                 )
 
                 # Update scan statistics
@@ -151,7 +149,9 @@ class ScanPersistenceService:
         counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFO": 0}
 
         for vuln in vulnerabilities:
-            severity_str = vuln.severity.value if hasattr(vuln.severity, "value") else str(vuln.severity)
+            severity_str = (
+                vuln.severity.value if hasattr(vuln.severity, "value") else str(vuln.severity)
+            )
             if severity_str in counts:
                 counts[severity_str] += 1
 

@@ -140,7 +140,9 @@ def scan(
                     success = service.save_scan_result(result)
 
                 if success:
-                    console.print(f"[green]Scan results saved to database (ID: {result.scan_id})[/green]")
+                    console.print(
+                        f"[green]Scan results saved to database (ID: {result.scan_id})[/green]"
+                    )
                 else:
                     console.print("[yellow]Failed to save scan results to database[/yellow]")
             except Exception as db_error:
@@ -640,7 +642,9 @@ def stats(ctx: click.Context) -> None:
 
         table.add_row("Total Scans", str(statistics["total_scans"]))
         table.add_row("Total Vulnerabilities", str(statistics["total_vulnerabilities"]))
-        table.add_row("Avg Vulnerabilities per Scan", f"{statistics['avg_vulnerabilities_per_scan']:.2f}")
+        table.add_row(
+            "Avg Vulnerabilities per Scan", f"{statistics['avg_vulnerabilities_per_scan']:.2f}"
+        )
         table.add_row("Total Files Scanned", str(statistics["total_files_scanned"]))
         table.add_row("Avg Scan Duration", f"{statistics['avg_scan_duration']:.2f}s")
 

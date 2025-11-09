@@ -96,7 +96,9 @@ class ScanRepository:
         """
         return self.session.query(ScanRecord).filter(ScanRecord.id == uuid).first()
 
-    def get_recent_scans(self, limit: int = 10, target_path: Optional[str] = None) -> List[ScanRecord]:
+    def get_recent_scans(
+        self, limit: int = 10, target_path: Optional[str] = None
+    ) -> List[ScanRecord]:
         """Get recent scan records.
 
         Args:
@@ -137,7 +139,9 @@ class ScanRepository:
             scan.medium_count = severity_counts.get("MEDIUM", 0)
             scan.low_count = severity_counts.get("LOW", 0)
 
-            logger.info(f"Updated scan stats for {scan_id}: {total_vulnerabilities} vulnerabilities")
+            logger.info(
+                f"Updated scan stats for {scan_id}: {total_vulnerabilities} vulnerabilities"
+            )
 
         return scan
 
@@ -230,7 +234,9 @@ class ScanRepository:
         Returns:
             VulnerabilityRecord if found, None otherwise
         """
-        return self.session.query(VulnerabilityRecord).filter(VulnerabilityRecord.id == uuid).first()
+        return (
+            self.session.query(VulnerabilityRecord).filter(VulnerabilityRecord.id == uuid).first()
+        )
 
     def update_vulnerability_status(
         self,

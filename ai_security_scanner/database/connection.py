@@ -69,12 +69,14 @@ class DatabaseManager:
         }
 
         if use_pool:
-            engine_kwargs.update({
-                "poolclass": QueuePool,
-                "pool_size": self.config.pool_size,
-                "max_overflow": self.config.max_overflow,
-                "pool_timeout": self.config.pool_timeout,
-            })
+            engine_kwargs.update(
+                {
+                    "poolclass": QueuePool,
+                    "pool_size": self.config.pool_size,
+                    "max_overflow": self.config.max_overflow,
+                    "pool_timeout": self.config.pool_timeout,
+                }
+            )
         else:
             engine_kwargs["poolclass"] = NullPool
 
@@ -207,6 +209,7 @@ def create_database_manager(config: Optional[DatabaseConfig] = None) -> Database
     """
     if config is None:
         from ai_security_scanner.core.config import Config
+
         config = Config().database
 
     return DatabaseManager(config)

@@ -62,6 +62,9 @@ ai-security-scanner scan /path/to/repo --enable-ai
 # Scan without AI (faster, pattern-matching only)
 ai-security-scanner scan /path/to/repo --no-ai
 
+# Scan and save results to database
+ai-security-scanner scan /path/to/repo --save-db
+
 # Export SARIF report for GitHub Code Scanning
 ai-security-scanner scan /path/to/repo --output sarif --file results.sarif
 
@@ -78,23 +81,21 @@ ai-security-scanner scan /path/to/repo -l python -l javascript
 ### Advanced Usage
 
 ```bash
-# View scan history and trends (requires database)
-ai-security-scanner history list
+# Database management
+ai-security-scanner db init                    # Initialize database schema
+ai-security-scanner db test-connection         # Test database connection
+ai-security-scanner db history -n 10           # View recent scans
+ai-security-scanner db show <scan-id>          # Show scan details
+ai-security-scanner db stats                   # View aggregated statistics
 
-# Compare two scans
-ai-security-scanner history compare scan-1 scan-2
+# View configuration
+ai-security-scanner config-info
 
-# View LLM cost breakdown
-ai-security-scanner stats costs
+# Analyze code snippet
+ai-security-scanner analyze "sql_query = 'SELECT * FROM users WHERE id=' + user_input" -l python
 
-# List available patterns
-ai-security-scanner patterns list
-
-# Validate configuration
-ai-security-scanner config validate
-
-# Explain a vulnerability type
-ai-security-scanner explain CWE-89
+# Scan GitHub repository
+ai-security-scanner github owner/repo --branch main
 ```
 
 ### GitHub Action
