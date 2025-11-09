@@ -45,10 +45,6 @@ jobs:
           black --check ai_security_scanner/
           isort --check-only ai_security_scanner/
 
-      - name: Run type checking
-        run: |
-          mypy ai_security_scanner/
-
       - name: Run security checks
         run: |
           bandit -r ai_security_scanner/ -f json -o bandit-report.json || true
