@@ -111,10 +111,10 @@ class ScanPersistenceService:
         end_column_number = None
 
         if vulnerability.location:
-            line_number = vulnerability.location.start_line
-            column_number = vulnerability.location.start_column
-            end_line_number = vulnerability.location.end_line
-            end_column_number = vulnerability.location.end_column
+            line_number = vulnerability.location.line_number
+            column_number = vulnerability.location.column_number
+            end_line_number = vulnerability.location.end_line_number
+            end_column_number = vulnerability.location.end_column_number
 
         repository.add_vulnerability(
             scan_id=scan_id,
