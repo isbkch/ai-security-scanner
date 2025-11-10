@@ -62,6 +62,9 @@ ai-security-scanner scan /path/to/repo --enable-ai
 # Scan without AI (faster, pattern-matching only)
 ai-security-scanner scan /path/to/repo --no-ai
 
+# Scan and save results to database
+ai-security-scanner scan /path/to/repo --save-db
+
 # Export SARIF report for GitHub Code Scanning
 ai-security-scanner scan /path/to/repo --output sarif --file results.sarif
 
@@ -78,23 +81,21 @@ ai-security-scanner scan /path/to/repo -l python -l javascript
 ### Advanced Usage
 
 ```bash
-# View scan history and trends (requires database)
-ai-security-scanner history list
+# Database management
+ai-security-scanner db init                    # Initialize database schema
+ai-security-scanner db test-connection         # Test database connection
+ai-security-scanner db history -n 10           # View recent scans
+ai-security-scanner db show <scan-id>          # Show scan details
+ai-security-scanner db stats                   # View aggregated statistics
 
-# Compare two scans
-ai-security-scanner history compare scan-1 scan-2
+# View configuration
+ai-security-scanner config-info
 
-# View LLM cost breakdown
-ai-security-scanner stats costs
+# Analyze code snippet
+ai-security-scanner analyze "sql_query = 'SELECT * FROM users WHERE id=' + user_input" -l python
 
-# List available patterns
-ai-security-scanner patterns list
-
-# Validate configuration
-ai-security-scanner config validate
-
-# Explain a vulnerability type
-ai-security-scanner explain CWE-89
+# Scan GitHub repository
+ai-security-scanner github owner/repo --branch main
 ```
 
 ### GitHub Action
@@ -221,20 +222,34 @@ monitoring:
 For scan history and trend analysis (optional but recommended):
 
 ```bash
-# Create PostgreSQL database
-createdb ai_security_scanner
-
-# Run migrations
-alembic upgrade head
-
-# Or use Docker
+# Option 1: Use Docker (recommended)
 docker run -d \
   --name ai-scanner-db \
   -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_USER=scanner \
   -e POSTGRES_DB=ai_security_scanner \
   -p 5432:5432 \
   postgres:15
+
+# Option 2: Create local database
+createdb ai_security_scanner
+
+# Initialize database schema
+ai-security-scanner db init
+
+# Test connection
+ai-security-scanner db test-connection
+
+# View recent scans
+ai-security-scanner db history
 ```
+
+**Database Features:**
+- **Scan History**: Complete record of all scans with metadata
+- **Vulnerability Tracking**: Track vulnerabilities over time and across scans
+- **Trend Analysis**: Compare scans to measure security improvements
+- **Pattern Analytics**: Understand which patterns are most effective
+- **Cost Tracking**: Monitor LLM API usage and estimated costs
 
 ## Development
 

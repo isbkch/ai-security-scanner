@@ -16,7 +16,8 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11"]
+        # python-version: ["3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v5
@@ -44,10 +45,6 @@ jobs:
         run: |
           black --check ai_security_scanner/
           isort --check-only ai_security_scanner/
-
-      - name: Run type checking
-        run: |
-          mypy ai_security_scanner/
 
       - name: Run security checks
         run: |

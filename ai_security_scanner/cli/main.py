@@ -16,6 +16,11 @@ from rich.text import Text
 from ai_security_scanner.core.config import Config, load_config
 from ai_security_scanner.core.llm.analyzer import VulnerabilityAnalyzer
 from ai_security_scanner.core.scanner import SecurityScanner
+from ai_security_scanner.database import (
+    DatabaseManager,
+    ScanPersistenceService,
+    create_database_manager,
+)
 from ai_security_scanner.integrations.github import GitHubIntegration
 from ai_security_scanner.integrations.sarif import SARIFExporter
 from ai_security_scanner.utils.logging import setup_logging
@@ -75,6 +80,7 @@ def cli(ctx: click.Context, config: Optional[str], verbose: bool, debug: bool) -
     "--language", "-l", multiple=True, help="Languages to scan (can be specified multiple times)"
 )
 @click.option("--no-ai", is_flag=True, help="Disable AI analysis")
+@click.option("--save-db", is_flag=True, help="Save scan results to database")
 @click.option("--github-repo", help="GitHub repository (owner/repo)")
 @click.option("--branch", help="Git branch to scan")
 @click.pass_context
@@ -86,6 +92,7 @@ def scan(
     severity: Optional[str],
     language: tuple,
     no_ai: bool,
+    save_db: bool,
     github_repo: Optional[str],
     branch: Optional[str],
 ) -> None:
@@ -122,6 +129,24 @@ def scan(
                 for vuln in result.vulnerabilities
                 if severity_order[vuln.severity] >= min_level
             ]
+
+        # Save to database if requested
+        if save_db:
+            try:
+                db_manager = create_database_manager(config.database)
+                service = ScanPersistenceService(db_manager)
+
+                with console.status("[bold green]Saving scan results to database..."):
+                    success = service.save_scan_result(result)
+
+                if success:
+                    console.print(
+                        f"[green]Scan results saved to database (ID: {result.scan_id})[/green]"
+                    )
+                else:
+                    console.print("[yellow]Failed to save scan results to database[/yellow]")
+            except Exception as db_error:
+                console.print(f"[yellow]Warning: Could not save to database: {db_error}[/yellow]")
 
         # Output results
         if output == "json":
@@ -411,6 +436,227 @@ def version(ctx: click.Context) -> None:
     from ai_security_scanner import __version__
 
     console.print(f"AI Security Scanner v{__version__}")
+
+
+@cli.group()
+@click.pass_context
+def db(ctx: click.Context) -> None:
+    """Database management commands."""
+    pass
+
+
+@db.command()
+@click.pass_context
+def init(ctx: click.Context) -> None:
+    """Initialize the database schema."""
+    config: Config = ctx.obj["config"]
+
+    try:
+        from ai_security_scanner.database.models import Base
+
+        db_manager = create_database_manager(config.database)
+
+        with console.status("[bold green]Creating database schema..."):
+            # Create engine and all tables
+            engine = db_manager.create_engine()
+            Base.metadata.create_all(engine)
+
+        console.print("[green]Database schema created successfully![/green]")
+
+    except Exception as e:
+        console.print(f"[red]Error initializing database: {e}[/red]")
+        if config.debug:
+            import traceback
+
+            console.print(traceback.format_exc())
+        sys.exit(1)
+
+
+@db.command()
+@click.pass_context
+def test_connection(ctx: click.Context) -> None:
+    """Test database connection."""
+    config: Config = ctx.obj["config"]
+
+    try:
+        db_manager = create_database_manager(config.database)
+
+        with console.status("[bold green]Testing database connection..."):
+            success = db_manager.test_connection()
+
+        if success:
+            console.print("[green]Database connection successful![/green]")
+        else:
+            console.print("[red]Database connection failed![/red]")
+            sys.exit(1)
+
+    except Exception as e:
+        console.print(f"[red]Error testing connection: {e}[/red]")
+        if config.debug:
+            import traceback
+
+            console.print(traceback.format_exc())
+        sys.exit(1)
+
+
+@db.command()
+@click.option("--limit", "-n", default=10, help="Number of recent scans to show")
+@click.pass_context
+def history(ctx: click.Context, limit: int) -> None:
+    """Show scan history."""
+    config: Config = ctx.obj["config"]
+
+    try:
+        db_manager = create_database_manager(config.database)
+        service = ScanPersistenceService(db_manager)
+
+        scans = service.get_recent_scans(limit=limit)
+
+        if not scans:
+            console.print("[yellow]No scans found in database.[/yellow]")
+            return
+
+        # Create history table
+        table = Table(title=f"Recent Scans (last {limit})")
+        table.add_column("Scan ID", style="cyan")
+        table.add_column("Timestamp", style="white")
+        table.add_column("Target", style="magenta")
+        table.add_column("Files", justify="right")
+        table.add_column("Vulnerabilities", justify="right")
+        table.add_column("Duration", justify="right")
+
+        for scan in scans:
+            table.add_row(
+                scan.scan_id[:8] + "...",
+                scan.scan_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                (scan.target_path[:30] + "...") if len(scan.target_path) > 30 else scan.target_path,
+                str(scan.files_scanned),
+                str(scan.total_vulnerabilities),
+                f"{scan.scan_duration:.2f}s",
+            )
+
+        console.print(table)
+
+    except Exception as e:
+        console.print(f"[red]Error retrieving scan history: {e}[/red]")
+        if config.debug:
+            import traceback
+
+            console.print(traceback.format_exc())
+        sys.exit(1)
+
+
+@db.command()
+@click.argument("scan_id")
+@click.pass_context
+def show(ctx: click.Context, scan_id: str) -> None:
+    """Show details of a specific scan."""
+    config: Config = ctx.obj["config"]
+
+    try:
+        db_manager = create_database_manager(config.database)
+
+        with db_manager.session_scope() as session:
+            from ai_security_scanner.database.repository import ScanRepository
+
+            repository = ScanRepository(session)
+            scan = repository.get_scan_by_id(scan_id)
+
+            if not scan:
+                console.print(f"[red]Scan not found: {scan_id}[/red]")
+                sys.exit(1)
+
+            # Display scan details
+            scan_info = Text()
+            scan_info.append(f"Scan ID: {scan.scan_id}\n")
+            scan_info.append(f"Timestamp: {scan.scan_timestamp}\n")
+            scan_info.append(f"Target: {scan.target_path}\n")
+            scan_info.append(f"Files Scanned: {scan.files_scanned}\n")
+            scan_info.append(f"Lines Scanned: {scan.total_lines_scanned}\n")
+            scan_info.append(f"Duration: {scan.scan_duration:.2f}s\n")
+            scan_info.append(f"Scanner Version: {scan.scanner_version}\n")
+
+            console.print(Panel(scan_info, title="Scan Details", border_style="blue"))
+
+            # Vulnerability summary
+            summary_table = Table(title="Vulnerability Summary")
+            summary_table.add_column("Severity", style="bold")
+            summary_table.add_column("Count", justify="right")
+
+            summary_table.add_row("CRITICAL", f"[red]{scan.critical_count}[/red]")
+            summary_table.add_row("HIGH", f"[orange1]{scan.high_count}[/orange1]")
+            summary_table.add_row("MEDIUM", f"[yellow]{scan.medium_count}[/yellow]")
+            summary_table.add_row("LOW", f"[green]{scan.low_count}[/green]")
+            summary_table.add_row("TOTAL", str(scan.total_vulnerabilities))
+
+            console.print(summary_table)
+
+            # Get vulnerabilities
+            vulnerabilities = repository.get_vulnerabilities_by_scan(scan_id)
+
+            if vulnerabilities:
+                vuln_table = Table(title="Vulnerabilities")
+                vuln_table.add_column("Type", style="cyan")
+                vuln_table.add_column("Severity", style="bold")
+                vuln_table.add_column("File", style="magenta")
+                vuln_table.add_column("Line", justify="right")
+
+                for vuln in vulnerabilities[:20]:  # Show first 20
+                    vuln_table.add_row(
+                        vuln.vulnerability_type,
+                        vuln.severity.value,
+                        vuln.file_path.split("/")[-1],
+                        str(vuln.line_number) if vuln.line_number else "N/A",
+                    )
+
+                if len(vulnerabilities) > 20:
+                    vuln_table.add_row("...", "...", f"({len(vulnerabilities) - 20} more)", "...")
+
+                console.print(vuln_table)
+
+    except Exception as e:
+        console.print(f"[red]Error retrieving scan details: {e}[/red]")
+        if config.debug:
+            import traceback
+
+            console.print(traceback.format_exc())
+        sys.exit(1)
+
+
+@db.command()
+@click.pass_context
+def stats(ctx: click.Context) -> None:
+    """Show aggregated scan statistics."""
+    config: Config = ctx.obj["config"]
+
+    try:
+        db_manager = create_database_manager(config.database)
+        service = ScanPersistenceService(db_manager)
+
+        statistics = service.get_scan_statistics()
+
+        # Display statistics
+        table = Table(title="Scan Statistics")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="white")
+
+        table.add_row("Total Scans", str(statistics["total_scans"]))
+        table.add_row("Total Vulnerabilities", str(statistics["total_vulnerabilities"]))
+        table.add_row(
+            "Avg Vulnerabilities per Scan", f"{statistics['avg_vulnerabilities_per_scan']:.2f}"
+        )
+        table.add_row("Total Files Scanned", str(statistics["total_files_scanned"]))
+        table.add_row("Avg Scan Duration", f"{statistics['avg_scan_duration']:.2f}s")
+
+        console.print(table)
+
+    except Exception as e:
+        console.print(f"[red]Error retrieving statistics: {e}[/red]")
+        if config.debug:
+            import traceback
+
+            console.print(traceback.format_exc())
+        sys.exit(1)
 
 
 def main() -> None:
